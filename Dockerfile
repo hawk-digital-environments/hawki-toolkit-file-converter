@@ -3,18 +3,25 @@ FROM python:3.10-slim
 # Set working directory
 WORKDIR /app
 
+# Install system dependencies for pandoc
+RUN apt-get update && apt-get install -y \
+    pandoc \
+    && rm -rf /var/lib/apt/lists/*
+
 # Install pip dependencies
 RUN pip install --no-cache-dir \
     fastapi \
     uvicorn \
     python-multipart \
-    pymupdf
+    pymupdf \
+    pypandoc
 
-# Copy the FastAPI app script into the container
-COPY process_pdfs.py .
+# Copy the application files into the container
+COPY main.py .
+COPY utils/ utils/
 
 # Expose FastAPI default port
-EXPOSE 8000
+EXPOSE 8001
 ENV PYTHONUNBUFFERED=1
 # FastAPI Server
-CMD ["uvicorn", "process_pdfs:app", "--host", "0.0.0.0", "--port", "8000", "--log-level", "debug"]
+CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8001", "--log-level", "debug"]

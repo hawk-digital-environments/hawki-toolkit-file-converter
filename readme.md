@@ -21,6 +21,6 @@ This project provides a lightweight, containerized API for extracting and cleani
 Example using `curl`:
 
 ```bash
-curl -X POST http://localhost:8000/extract-pdf \
+curl -X POST http://localhost:8001/extract-pdf \
   -F "file=@/path/to/your/document.pdf"
 ```

@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-FastAPI PDF-to-Markdown service.
+PDF-to-Markdown processor using pyMuPDF.
 
 Features
 --------
@@ -20,7 +20,7 @@ from tempfile import TemporaryDirectory
 from typing import List, Tuple
 
 import fitz  
-from fastapi import FastAPI, File, UploadFile
+from fastapi import UploadFile
 from fastapi.responses import StreamingResponse
 
 # ──────────────────────────── Tunables ──────────────────────────── #
@@ -31,8 +31,6 @@ MIN_PAGES        = 50            # don't split below this
 FIRST_PASS_STEP  = 20           # initial pages per slice
 DEBUG            = False        # for console logs
 # ────────────────────────────────────────────────────────────────── #
-
-app = FastAPI(title="PDF → MD Extractor")
 
 
 # ────────────────────── Utility helpers ─────────────────────────── #
@@ -125,12 +123,9 @@ def extract_chunk(
     return "\n\n".join(parts)
 
 
-# ─────────────────────────── API route ──────────────────────────── #
-@app.post("/extract")
-async def extract(
-    file: UploadFile = File(...),
-    chunkable: bool = True,
-):
+# ─────────────────────────── PDF processor ──────────────────────────── #
+async def process_pdf(file: UploadFile, chunkable: bool = True) -> StreamingResponse:
+    """Process PDF file and return ZIP with markdown and images."""
     with TemporaryDirectory() as tmp:
         tmpdir = Path(tmp)
         pdf_path = tmpdir / file.filename
