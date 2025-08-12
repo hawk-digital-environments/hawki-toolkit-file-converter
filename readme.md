@@ -23,4 +23,7 @@ Example using `curl`:
 ```bash
 curl -X POST http://localhost:8001/extract-pdf \
   -F "file=@/path/to/your/document.pdf"
+  [optional arg:] --output [Filename].zip
 ```
+
+### Important Update> always use double qoutation around the "file=@/path/file.pdf"

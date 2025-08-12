@@ -8,14 +8,21 @@ Supports:
 """
 
 from pathlib import Path
+import re 
 
 from fastapi import FastAPI, File, UploadFile, HTTPException
 from fastapi.responses import StreamingResponse
 
 from utils.pdf_processor import process_pdf
 from utils.word_processor import process_word, is_word_file
+from utils.logging_helper import logging_help  # <- your helper
 
 app = FastAPI(title="File → Markdown Converter")
+# Logger initialization
+logger = logging_help()
+
+# any special codes can be detected here outside the normal scope > good for finding Deutsch words that cause issues
+_SPECIAL_NAME_RE = re.compile(r"[^A-Za-z0-9._-]|\s")
 
 
 def get_file_type(filename: str) -> str:
@@ -36,7 +43,7 @@ def get_file_type(filename: str) -> str:
 @app.post("/extract")
 async def extract(
     file: UploadFile = File(...),
-    chunkable: bool = True,
+    chunkable: bool = True,  
 ):
     """
     Extract content from uploaded file and convert to Markdown.
@@ -51,19 +58,38 @@ async def extract(
     """
     if not file.filename:
         raise HTTPException(status_code=400, detail="Filename is required")
-    
+
+    # Log the incoming filename and content type
+    logger.info(f"Incoming upload: filename={repr(file.filename)}, content_type={repr(getattr(file, 'content_type', None))}")
+
+    # this line warns us if filename contains spaces or special characters
+    if _SPECIAL_NAME_RE.search(file.filename or ""):
+        logger.warning(f"Filename contains spaces or special characters: {repr(file.filename)}")
+
     file_type = get_file_type(file.filename)
-    
-    if file_type == "pdf":
-        return await process_pdf(file, chunkable)
-    elif file_type == "word":
-        return await process_word(file)
-    else:
-        supported_types = ['.pdf', '.doc', '.docx']
-        raise HTTPException(
-            status_code=400, 
-            detail=f"Unsupported file type. Supported types: {', '.join(supported_types)}"
-        )
+    logger.info(f"Detected file type: {file_type} (chunkable={chunkable})")
+
+    try:
+        if file_type == "pdf":
+            logger.info("Selected processor: PDF")
+            # process_pdf  returns a ZIP with markdown/images
+            return await process_pdf(file, chunkable)
+        elif file_type == "word":
+            logger.info("Selected processor: Word")
+            return await process_word(file)
+        else:
+            supported_types = ['.pdf', '.doc', '.docx']
+            logger.error(f"Unsupported file type: {Path(file.filename).suffix.lower()}")
+            raise HTTPException(
+                status_code=400, 
+                detail=f"Unsupported file type. Supported types: {', '.join(supported_types)}"
+            )
+    except HTTPException:
+        raise
+    except Exception as e:
+        # other unexpected error is logged here as 500
+        logger.exception(f"Extraction failed for {repr(file.filename)}: {e}")
+        raise HTTPException(status_code=500, detail="conversion_failed")
 
 
 @app.get("/")
