@@ -27,6 +27,8 @@ from fastapi import UploadFile
 from fastapi.responses import StreamingResponse
 from langdetect import detect  # for auto language detection
 
+from utils.helper import make_content_disposition
+
 # ──────────────────────────── Tunables ──────────────────────────── #
 MB = 1_048_576  # 1024²
 CHUNK_THRESHOLD = 50 * MB
@@ -190,5 +192,5 @@ async def process_pdf(file: UploadFile, chunkable: bool = True) -> StreamingResp
         return StreamingResponse(
             buf,
             media_type="application/zip",
-            headers={"Content-Disposition": f'attachment; filename="{pdf_path.stem}.zip"'},
+            headers={"Content-Disposition": make_content_disposition(pdf_path.stem)},
         )

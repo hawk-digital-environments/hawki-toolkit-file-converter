@@ -19,6 +19,7 @@ import pypandoc
 from fastapi import UploadFile
 from fastapi.responses import StreamingResponse
 
+from utils.helper import make_content_disposition
 
 async def process_word(file: UploadFile) -> StreamingResponse:
     """Process Word document and return ZIP with markdown and images."""
@@ -93,7 +94,7 @@ async def process_word(file: UploadFile) -> StreamingResponse:
         return StreamingResponse(
             buf,
             media_type="application/zip",
-            headers={"Content-Disposition": f'attachment; filename="{Path(filename).stem}.zip"'},
+            headers={"Content-Disposition": make_content_disposition(Path(filename).stem)},
         )
 
 
