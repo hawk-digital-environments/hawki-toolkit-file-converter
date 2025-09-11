@@ -8,18 +8,29 @@ Supports:
 """
 
 from pathlib import Path
-import re 
+import re, os
+from typing import Optional
 
-from fastapi import FastAPI, File, UploadFile, HTTPException
-from fastapi.responses import StreamingResponse
+from fastapi import FastAPI, File, UploadFile, HTTPException, Depends, Header
+# from fastapi.responses import StreamingResponse
+# from fastapi.security.api_key import APIKeyHeader
 
 from utils.pdf_processor import process_pdf
 from utils.word_processor import process_word, is_word_file
-from utils.logging_helper import logging_help  # <- your helper
+from utils.logging_helper import logging_help  
 
 app = FastAPI(title="File → Markdown Converter")
 # Logger initialization
 logger = logging_help()
+################# API KEY VALIDATION ####################
+REQUIRED_KEY = os.getenv("F_API_KEY", "").strip()
+
+async def require_api_key(x_api_key: str | None = Header(default=None)):
+    if not REQUIRED_KEY:  #  open access
+        return
+    if not x_api_key or x_api_key != REQUIRED_KEY:
+        raise HTTPException(status_code=401, detail="Invalid API key")
+#####################
 
 # any special codes can be detected here outside the normal scope > good for finding Deutsch words that cause issues
 _SPECIAL_NAME_RE = re.compile(r"[^A-Za-z0-9._-]|\s")
@@ -40,10 +51,10 @@ def get_file_type(filename: str) -> str:
         return "unknown"
 
 
-@app.post("/extract")
+@app.post("/extract", dependencies=[Depends(require_api_key)])
 async def extract(
     file: UploadFile = File(...),
-    chunkable: bool = True,  
+    chunkable: bool = True
 ):
     """
     Extract content from uploaded file and convert to Markdown.
@@ -92,11 +103,12 @@ async def extract(
         raise HTTPException(status_code=500, detail="conversion_failed")
 
 
-@app.get("/")
+@app.get("/", dependencies=[Depends(require_api_key)])
 async def root():
     """Health check and service info."""
     return {
         "service": "File to Markdown Converter",
+        "auth": "X-API-KEY required",
         "supported_formats": [".pdf", ".doc", ".docx"],
         "endpoints": {
             "/extract": "POST - Upload file for conversion",
