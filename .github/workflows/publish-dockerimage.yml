@@ -1,6 +1,5 @@
 name: Publish Dockerimage
 
-
 on:
   workflow_dispatch:
     inputs:
@@ -13,13 +12,7 @@ on:
     branches:
       - main
 
-
 jobs:
-  showRef:
-    runs-on: ubuntu-latest
-    steps:
-      - name: Show GitHub context
-        run: echo "${{ toJson(github) }}"
   push_to_registry:
     name: Push Docker image to Docker Hub
     runs-on: ubuntu-latest
@@ -28,7 +21,7 @@ jobs:
       contents: read
       attestations: write
       id-token: write
-    if: github.ref == 'refs/heads/main' && (github.ref_type == 'tag' || github.event_name == 'workflow_dispatch')
+    if: github.event_name == 'workflow_dispatch' || startsWith(github.ref, 'refs/tags/')
     steps:
       - name: Check out the repo
         uses: actions/checkout@v4
