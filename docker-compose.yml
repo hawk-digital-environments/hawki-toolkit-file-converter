@@ -1,0 +1,29 @@
+# networks:
+#   hosting-network:
+#     external: true
+#   hawki-network:
+#     driver: bridge
+
+services:
+  file-converter:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    ports:
+      - "8001:8001"
+    environment:
+      - F_API_KEY= ${F_API_KEY:-} # Empty by default 
+      - PYTHONPATH=/app
+      # - VIRTUAL_HOST=${VIRTUAL_HOST}
+      # - VIRTUAL_PATH=${VIRTUAL_PATH}
+      # - VIRTUAL_DEST=${VIRTUAL_DEST}
+    restart: unless-stopped
+    # networks:
+    # - hosting-network
+    # - hawki-network
+    healthcheck:
+      test: [ "CMD", "curl", "-f", "http://localhost:8001/" ]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
