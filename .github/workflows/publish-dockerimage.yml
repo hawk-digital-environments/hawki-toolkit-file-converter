@@ -13,6 +13,11 @@ on:
       - main
 
 jobs:
+  showRef:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Show GitHub context
+        run: echo "${{ toJson(github) }}"
   push_to_registry:
     name: Push Docker image to Docker Hub
     runs-on: ubuntu-latest
