@@ -24,12 +24,18 @@ app = FastAPI(title="File → Markdown Converter")
 logger = logging_help()
 ################# API KEY VALIDATION ####################
 REQUIRED_KEY = os.getenv("F_API_KEY", "").strip()
+if not REQUIRED_KEY:
+    raise RuntimeError("F_API_KEY not set! Server cannot run without it.")
 
-async def require_api_key(x_api_key: str | None = Header(default=None)):
-    if not REQUIRED_KEY:  #  open access
-        return
-    if not x_api_key or x_api_key != REQUIRED_KEY:
+async def require_api_key(authorization: str | None = Header(default=None)):
+    if not authorization or not authorization.startswith("Bearer "):
+        raise HTTPException(status_code=401, detail="Missing or invalid Authorization header")
+
+    token = authorization.removeprefix("Bearer ").strip()
+    logger.info(token)
+    if token != REQUIRED_KEY:
         raise HTTPException(status_code=401, detail="Invalid API key")
+
 #####################
 
 # any special codes can be detected here outside the normal scope > good for finding Deutsch words that cause issues
