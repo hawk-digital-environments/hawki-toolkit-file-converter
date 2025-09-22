@@ -55,6 +55,7 @@ jobs:
           context: .
           file: ./Dockerfile
           push: true
+          platforms: linux/amd64,linux/arm64
           tags: |
             digitalenvironments/hawki-toolkit-file-converter:latest
             digitalenvironments/hawki-toolkit-file-converter:${{ steps.tag.outputs.tag }}
