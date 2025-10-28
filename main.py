@@ -32,7 +32,7 @@ async def require_api_key(authorization: str | None = Header(default=None)):
         raise HTTPException(status_code=401, detail="Missing or invalid Authorization header")
 
     token = authorization.removeprefix("Bearer ").strip()
-    logger.info(token)
+    # token logging removed to avoid leaking secrets
     if token != REQUIRED_KEY:
         raise HTTPException(status_code=401, detail="Invalid API key")
 

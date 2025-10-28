@@ -31,10 +31,10 @@ from utils.helper import make_content_disposition
 
 # ──────────────────────────── Tunables ──────────────────────────── #
 MB = 1_048_576  # 1024²
-CHUNK_THRESHOLD = 50 * MB
-CHUNK_TARGET = 20 * MB
-MIN_PAGES = 50
-FIRST_PASS_STEP = 20
+CHUNK_THRESHOLD = 12 * MB  
+CHUNK_TARGET = 6 * MB      
+MIN_PAGES = 12             
+FIRST_PASS_STEP = 10       
 DEBUG = False
 OCR_LANGS = "eng+deu+fra+ita+spa+por+nld"  # Add European languages
 # ────────────────────────────────────────────────────────────────── #
@@ -98,52 +98,53 @@ def split_by_size(
 # ──────────────── Page/Chunk Processor with OCR ─────────────── #
 def extract_chunk(
     chunk_id: int,
-    doc: fitz.Document,
+    pdf_path: Path,
     start: int,
     end: int,
     img_dir: Path,
 ) -> str:
     """Extract markdown content from PDF pages with OCR fallback."""
-    sub = fitz.open()
-    sub.insert_pdf(doc, from_page=start, to_page=end - 1)
+    # reload the document per worker because fitz.Document is not thread-safe
     parts: List[str] = [f"# Chunk {start + 1}-{end}"]
 
-    for page_number, page in enumerate(sub, start=start + 1):
-        text = page.get_text("blocks")
-        text = "\n".join(b[4].strip() for b in text if b[4].strip())
-        used_ocr = False
+    with fitz.open(pdf_path) as doc:
+        for page_index in range(start, end):
+            page_number = page_index + 1
+            page = doc.load_page(page_index)
+            text = page.get_text("blocks")
+            text = "\n".join(b[4].strip() for b in text if b[4].strip())
+            used_ocr = False
 
-        if not text.strip():
-            pix = page.get_pixmap(dpi=300)
-            img_bytes = pix.tobytes("png")
-            img = Image.open(io.BytesIO(img_bytes))
+            if not text.strip():
+                pix = page.get_pixmap(dpi=300)
+                img_bytes = pix.tobytes("png")
+                img = Image.open(io.BytesIO(img_bytes))
 
-            # OCR fallback
-            text = pytesseract.image_to_string(img, lang=OCR_LANGS)
-            text = clean_text(text)
-            used_ocr = True
+                # OCR fallback
+                text = pytesseract.image_to_string(img, lang=OCR_LANGS)
+                text = clean_text(text)
+                used_ocr = True
 
-        images_here = []
-        for img_idx, img_info in enumerate(page.get_images(full=True), start=1):
-            xref = img_info[0]
-            info = sub.extract_image(xref)
-            ext = info["ext"]
-            img_path = img_dir / f"c{chunk_id}_p{page_number}_i{img_idx}.{ext}"
-            img_path.write_bytes(info["image"])
-            images_here.append(img_path.name)
+            images_here = []
+            for img_idx, img_info in enumerate(page.get_images(full=True), start=1):
+                xref = img_info[0]
+                info = doc.extract_image(xref)
+                ext = info["ext"]
+                img_path = img_dir / f"c{chunk_id}_p{page_number}_i{img_idx}.{ext}"
+                img_path.write_bytes(info["image"])
+                images_here.append(img_path.name)
 
-        if text or images_here:
-            header = f"## Page {page_number}"
-            if used_ocr:
-                header += " (OCR)"
-            parts.append(header)
+            if text or images_here:
+                header = f"## Page {page_number}"
+                if used_ocr:
+                    header += " (OCR)"
+                parts.append(header)
 
-            if text:
-                parts.append(text)
-            for img_name in images_here:
-                parts.append(f"![p{page_number}](/images_pdf/{img_name})")
+                if text:
+                    parts.append(text)
+                for img_name in images_here:
+                    parts.append(f"![p{page_number}](/images_pdf/{img_name})")
 
-    sub.close()
     return "\n\n".join(parts)
 
 
@@ -167,17 +168,18 @@ async def process_pdf(file: UploadFile, chunkable: bool = True) -> StreamingResp
         for s, e in first_pass:
             split_by_size(doc, s, e, chunkable=chunkable, bucket=ranges)
 
+        doc.close()
+
         _log(f"✂️  Final chunk count: {len(ranges)}")
 
         loop = asyncio.get_running_loop()
         tasks = [
             loop.run_in_executor(
-                None, extract_chunk, idx, doc, s, e, img_dir
+                None, extract_chunk, idx, pdf_path, s, e, img_dir
             )
             for idx, (s, e) in enumerate(ranges)
         ]
         markdown_blocks = await asyncio.gather(*tasks)
-        doc.close()
 
         md_path = out_dir / "content_markdown.md"
         md_path.write_text("\n\n".join(markdown_blocks), encoding="utf-8")

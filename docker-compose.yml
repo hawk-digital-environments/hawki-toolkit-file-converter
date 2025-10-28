@@ -22,7 +22,8 @@ services:
     # - hosting-network
     # - hawki-network
     healthcheck:
-      test: [ "CMD", "curl", "-f", "http://localhost:8001/" ]
+      # use unauthenticated /health endpoint so the check does not fail on auth
+      test: [ "CMD", "curl", "-f", "http://localhost:8001/health" ]
       interval: 30s
       timeout: 10s
       retries: 3

@@ -49,7 +49,8 @@ services:
       - F_API_KEY=Your-secret-api-key
     restart: unless-stopped
     healthcheck:
-      test: [ "CMD", "curl", "-f", "http://localhost:8001/" ]
+      # /health is public; no auth header needed for the check
+      test: [ "CMD", "curl", "-f", "http://localhost:8001/health" ]
       interval: 30s
       timeout: 10s
       retries: 3
