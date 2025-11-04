@@ -145,7 +145,7 @@ jobs:
           platforms: linux/amd64,linux/arm64
           tags: |
             digitalenvironments/hawki-toolkit-file-converter:latest
-            digitalenvironments/hawki-toolkit-file-converter:${{ steps.detect-version.outputs.version }}
+            digitalenvironments/hawki-toolkit-file-converter:${{ needs.detect-version.outputs.version }}
           cache-from: type=gha,scope=${{ needs.detect-version.outputs.version }}
           cache-to: type=gha,mode=max,scope=${{ needs.detect-version.outputs.version }}
 
