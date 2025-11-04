@@ -160,8 +160,9 @@ jobs:
     runs-on: ubuntu-latest
     needs: [ detect-version, create-release, build-and-publish-docker ]
     if: success() && needs.detect-version.outputs.should_release == 'true'
-          - name: Setup release environment
-          uses: ./.github/actions/setup-release-environment
+    steps:
+      - name: Setup release environment
+        uses: ./.github/actions/setup-release-environment
 
       - name: Send Discord Notification
         working-directory: .github/.release
