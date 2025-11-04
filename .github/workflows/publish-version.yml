@@ -66,8 +66,8 @@ jobs:
           push: false
           tags: digitalenvironments/hawki-toolkit-file-converter:test
           platforms: linux/amd64,linux/arm64
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
+          cache-from: type=gha,scope=${{ needs.detect-version.outputs.version }}
+          cache-to: type=gha,mode=max,scope=${{ needs.detect-version.outputs.version }}
 
   # ========================================================
   # JOB 3: Create release (only after successful build test)
@@ -145,9 +145,9 @@ jobs:
           platforms: linux/amd64,linux/arm64
           tags: |
             digitalenvironments/hawki-toolkit-file-converter:latest
-            digitalenvironments/hawki-toolkit-file-converter:${{ steps.detect-version.outputs.tag }}
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
+            digitalenvironments/hawki-toolkit-file-converter:${{ steps.detect-version.outputs.version }}
+          cache-from: type=gha,scope=${{ needs.detect-version.outputs.version }}
+          cache-to: type=gha,mode=max,scope=${{ needs.detect-version.outputs.version }}
 
       - name: Generate artifact attestation
         uses: actions/attest-build-provenance@v2
