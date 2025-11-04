@@ -1,0 +1,30 @@
+name: 'Setup Release Environment'
+description: 'Sets up Node.js and installs release dependencies'
+inputs:
+  fetch-depth:
+    description: 'Number of commits to fetch'
+    required: false
+    default: '1'
+  node-version:
+    description: 'Node.js version to setup'
+    required: false
+    default: '24'
+runs:
+  using: 'composite'
+  steps:
+    - name: Checkout repository
+      uses: actions/checkout@v5
+      with:
+        fetch-depth: ${{ inputs.fetch-depth }}
+
+    - name: Setup Node.js
+      uses: actions/setup-node@v6
+      with:
+        node-version: ${{ inputs.node-version }}
+        cache: 'npm'
+        cache-dependency-path: '.github/.release/package-lock.json'
+
+    - name: Install dependencies
+      shell: bash
+      working-directory: .github/.release
+      run: npm ci
