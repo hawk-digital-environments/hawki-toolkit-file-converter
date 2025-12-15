@@ -7,13 +7,13 @@ Supports:
 - Word documents (.doc, .docx using pypandoc)
 """
 
+import importlib.util
+import shutil
 from pathlib import Path
 import re, os
-from typing import Optional
 
-from fastapi import FastAPI, File, UploadFile, HTTPException, Depends, Header
-# from fastapi.responses import StreamingResponse
-# from fastapi.security.api_key import APIKeyHeader
+from fastapi import FastAPI, File, UploadFile, HTTPException, Depends, Header, status
+from pydantic import BaseModel
 
 from utils.pdf_processor import process_pdf
 from utils.word_processor import process_word, is_word_file
@@ -32,7 +32,7 @@ async def require_api_key(authorization: str | None = Header(default=None)):
         raise HTTPException(status_code=401, detail="Missing or invalid Authorization header")
 
     token = authorization.removeprefix("Bearer ").strip()
-    logger.info(token)
+    # token logging removed to avoid leaking secrets
     if token != REQUIRED_KEY:
         raise HTTPException(status_code=401, detail="Invalid API key")
 
@@ -40,6 +40,32 @@ async def require_api_key(authorization: str | None = Header(default=None)):
 
 # any special codes can be detected here outside the normal scope > good for finding Deutsch words that cause issues
 _SPECIAL_NAME_RE = re.compile(r"[^A-Za-z0-9._-]|\s")
+
+
+class HealthCheck(BaseModel):
+    """Simple health response model."""
+
+    status: str = "OK"
+
+
+def _run_dependency_checks() -> None:
+    """
+    Ensure critical runtime dependencies are present.
+
+    Raises:
+        RuntimeError: If required binaries or modules are missing.
+    """
+    missing_modules = [
+        module for module in ("fitz", "pypandoc") if importlib.util.find_spec(module) is None
+    ]
+    if missing_modules:
+        raise RuntimeError(f"Missing Python modules: {', '.join(missing_modules)}")
+
+    missing_binaries = [
+        binary for binary in ("tesseract", "pandoc") if shutil.which(binary) is None
+    ]
+    if missing_binaries:
+        raise RuntimeError(f"Missing binaries: {', '.join(missing_binaries)}")
 
 
 def get_file_type(filename: str) -> str:
@@ -121,3 +147,27 @@ async def root():
             "/": "GET - This info page"
         }
     }
+
+
+@app.get(
+    "/health",
+    tags=["healthcheck"],
+    summary="QUICK health check",
+    response_description="Return HTTP Status Code 200 (OK)",
+    status_code=status.HTTP_200_OK,
+    response_model=HealthCheck,
+)
+async def healthcheck() -> HealthCheck:
+    """
+    Returns 200 when core dependencies are available; otherwise 500.
+    """
+    try:
+        _run_dependency_checks()
+    except Exception as exc:  # pragma: no cover - defensive logging
+        logger.exception("Health check failed: %s", exc)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="unhealthy",
+        ) from exc
+
+    return HealthCheck(status="OK")

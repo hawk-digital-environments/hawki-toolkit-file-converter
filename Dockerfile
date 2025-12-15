@@ -1,10 +1,15 @@
 FROM python:3.10-slim
 
+LABEL org.opencontainers.image.authors="HAWKI Team <ki@hawk.de>"
+LABEL org.opencontainers.image.description="The HAWKI file conversion service"
+
 # Set working directory
 WORKDIR /app
 
 # Install system dependencies
-RUN apt-get update && apt-get install -y \
+RUN --mount=type=cache,id=apt-cache,target=/var/cache/apt,sharing=locked \
+    --mount=type=cache,id=apt-lib,target=/var/lib/apt,sharing=locked \
+    apt-get update && apt-get install -y \
     pandoc \
     tesseract-ocr \
     tesseract-ocr-deu \
@@ -17,11 +22,11 @@ RUN apt-get update && apt-get install -y \
     curl \
     gcc \
     libgl1 \
-    libc-bin \
-    && rm -rf /var/lib/apt/lists/*
+    libc-bin
 
 # Install pip dependencies
-RUN pip install --no-cache-dir \
+RUN --mount=type=cache,target=/root/.cache/pip \
+    pip install --no-cache-dir \
     fastapi \
     uvicorn \
     python-multipart \
