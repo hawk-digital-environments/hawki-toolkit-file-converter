@@ -21,9 +21,10 @@ This project provides a lightweight, containerized API for extracting and cleani
 Example using `curl`:
 
 ```bash
-curl -X POST http://localhost:8001/extract-pdf \
+curl -X POST http://localhost:8001/extract \
+  -H "Authorization: Bearer Your-secret-api-key" \
   -F "file=@/path/to/your/document.pdf"
-  [optional arg:] --output [Filename].zip
+  --output [Filename].zip
 ```
 
 ### Important Update> always use double qoutation around the "file=@/path/file.pdf"
