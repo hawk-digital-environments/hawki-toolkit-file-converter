@@ -13,8 +13,8 @@ This project provides a lightweight, containerized API for extracting and cleani
 
 ```bash
 ./run.sh
-
->>>> This will build the Docker image (`pymupdf-extract`)
+```
+This will build the Docker image (`pymupdf-extract`)
 
 ##  API Endpoint
 
