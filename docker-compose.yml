@@ -1,8 +1,6 @@
-# networks:
-#   hosting-network:
-#     external: true
-#   hawki-network:
-#     driver: bridge
+networks:
+  hawki-network:
+    driver: bridge
 
 services:
   file-converter:
@@ -18,9 +16,8 @@ services:
       # - VIRTUAL_PATH=${VIRTUAL_PATH}
       # - VIRTUAL_DEST=${VIRTUAL_DEST}
     restart: unless-stopped
-    # networks:
-    # - hosting-network
-    # - hawki-network
+    networks:
+      - hawki-network
     healthcheck:
       # use unauthenticated /health endpoint so the check does not fail on auth
       test: [ "CMD", "curl", "-f", "http://localhost:8001/health" ]
