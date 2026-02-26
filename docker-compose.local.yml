@@ -1,0 +1,9 @@
+services:
+  file-converter:
+    networks:
+      - hawki_hawk_net
+      - default
+networks:
+  hawki_hawk_net:
+    name: hawki_hawk_net
+    external: true

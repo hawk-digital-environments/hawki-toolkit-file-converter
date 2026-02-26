@@ -8,20 +8,7 @@ services:
       context: .
       dockerfile: Dockerfile
     ports:
-      - "8001:8001"
+      - "8001:80"
     environment:
-      - F_API_KEY= ${F_API_KEY:-} # Empty by default 
-      - PYTHONPATH=/app
-      # - VIRTUAL_HOST=${VIRTUAL_HOST}
-      # - VIRTUAL_PATH=${VIRTUAL_PATH}
-      # - VIRTUAL_DEST=${VIRTUAL_DEST}
+      - F_API_KEY= ${F_API_KEY:-} # Empty by default
     restart: unless-stopped
-    networks:
-      - hawki-network
-    healthcheck:
-      # use unauthenticated /health endpoint so the check does not fail on auth
-      test: [ "CMD", "curl", "-f", "http://localhost:8001/health" ]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-      start_period: 40s
