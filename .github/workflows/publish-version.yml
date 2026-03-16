@@ -24,6 +24,8 @@ jobs:
       - name: Detect latest version from changelog
         uses: hawk-digital-environments/hawk-pipeline-actions/detect-version@v1
         id: version
+        with:
+          strategy: 'changelog'
 
   build-and-publish:
     name: Build & Publish Docker Image
