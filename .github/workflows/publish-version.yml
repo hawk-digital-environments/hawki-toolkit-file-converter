@@ -76,7 +76,7 @@ jobs:
   github-release:
     name: Create GitHub Release
     runs-on: ubuntu-latest
-    needs: [ build-and-publish ]
+    needs: [ build-and-publish, detect-version ]
     permissions:
       contents: write
     outputs:
@@ -95,7 +95,7 @@ jobs:
   notify-discord:
     name: Notify Discord
     runs-on: ubuntu-latest
-    needs: [ build-and-publish, github-release ]
+    needs: [ build-and-publish, github-release, detect-version ]
     if: success()
     steps:
       - uses: actions/checkout@v6
