@@ -36,8 +36,6 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v6
-        with:
-          ref: release/${{ needs.detect-version.outputs.version }}
 
       - name: Set up QEMU
         uses: docker/setup-qemu-action@v4
