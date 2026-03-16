@@ -41,7 +41,6 @@ jobs:
           context: .
           file: ./Dockerfile
           push: false
-          target: app_prod
           platforms: linux/amd64,linux/arm64
           tags: digitalenvironments/hawki:release-test
           cache-from: type=gha,scope=${{ needs.validate.outputs.version }}
