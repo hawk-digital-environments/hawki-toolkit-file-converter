@@ -1,15 +1,18 @@
-FROM python:3.10-slim
+FROM neunerlei/python-nginx:3.14
 
 LABEL org.opencontainers.image.authors="HAWKI Team <ki@hawk.de>"
 LABEL org.opencontainers.image.description="The HAWKI file conversion service"
 
-# Set working directory
-WORKDIR /app
+ENV PYTHONUNBUFFERED=1
+# Configure the base image to run the FastAPI app with Gunicorn and Uvicorn workers
+# See: https://github.com/Neunerlei/docker-images/blob/main/docs/python-nginx.md#configuration-via-environment-variables
+ENV PYTHON_APP_MODULE="main:app"
+ENV GUNICORN_WORKER_CLASS="uvicorn.workers.UvicornWorker"
 
 # Install system dependencies
 RUN --mount=type=cache,id=apt-cache,target=/var/cache/apt,sharing=locked \
     --mount=type=cache,id=apt-lib,target=/var/lib/apt,sharing=locked \
-    apt-get update && apt-get install -y \
+    apt update && apt install -y \
     pandoc \
     tesseract-ocr \
     tesseract-ocr-deu \
@@ -19,7 +22,6 @@ RUN --mount=type=cache,id=apt-cache,target=/var/cache/apt,sharing=locked \
     tesseract-ocr-spa \
     tesseract-ocr-nld \
     poppler-utils \
-    curl \
     gcc \
     libgl1 \
     libc-bin
@@ -41,9 +43,5 @@ RUN --mount=type=cache,target=/root/.cache/pip \
 COPY main.py .
 COPY utils/ utils/
 
-# Expose FastAPI default port
-EXPOSE 8001
-ENV PYTHONUNBUFFERED=1
-
-# FastAPI Server
-CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8001", "--log-level", "debug"]
+HEALTHCHECK --interval=30s --timeout=10s --start-period=40s --retries=3 \
+    CMD curl -f http://localhost/health || exit 1
