@@ -89,7 +89,7 @@ jobs:
       - id: release
         uses: hawk-digital-environments/hawk-pipeline-actions/create-github-release@v1
         with:
-          version: ${{ github.ref_name }}
+          version: ${{ needs.detect-version.outputs.version }}
           token: ${{ secrets.GITHUB_TOKEN }}
 
   notify-discord:
