@@ -16,7 +16,7 @@ jobs:
     name: Create release/v${{ inputs.version }}
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
         with:
           fetch-depth: 0
           token: ${{ secrets.WORKFLOW_TOKEN }}
@@ -24,4 +24,3 @@ jobs:
       - uses: hawk-digital-environments/hawk-pipeline-actions/create-release-branch@v1
         with:
           version: ${{ inputs.version }}
-          version-json: config/hawki_version.json
