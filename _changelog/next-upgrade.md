@@ -1,4 +1,4 @@
-# Upgrading
+# Upgrading to version %%VERSION%%
 
 ## Docker Deployment
 

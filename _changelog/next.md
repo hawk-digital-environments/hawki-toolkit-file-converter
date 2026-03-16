@@ -1,4 +1,4 @@
-# vX.Y.Z
+# v%%VERSION%%
 
 ### What's New
 
