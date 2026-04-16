@@ -10,5 +10,11 @@ services:
     ports:
       - "8001:80"
     environment:
-      - F_API_KEY= ${F_API_KEY:-} # Empty by default
+      - F_API_KEY=${F_API_KEY:-}
+      - POSTGRES_ENABLED=${POSTGRES_ENABLED:-true}
+    volumes:
+      - postgres_data:/var/lib/postgresql/17/main
     restart: unless-stopped
+
+volumes:
+  postgres_data:
