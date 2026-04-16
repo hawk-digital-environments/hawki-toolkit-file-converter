@@ -1,0 +1,26 @@
+{
+  "name": "HAWKI File Converter",
+  "dockerComposeFile": "docker-compose.yml",
+  "service": "file-converter",
+  "workspaceFolder": "/workspace",
+  "forwardPorts": [8001],
+  "remoteUser": "${localEnv:USER}",
+  "portsAttributes": {
+    "8001": {
+      "label": "FastAPI Dev Server",
+      "onAutoForward": "notify"
+    }
+  },
+  "postCreateCommand": "uv sync",
+  "customizations": {
+    "vscode": {
+      "extensions": [
+        "ms-python.python",
+        "ms-python.debugpy"
+      ],
+      "settings": {
+        "python.defaultInterpreterPath": "/workspace/.venv/bin/python"
+      }
+    }
+  }
+}

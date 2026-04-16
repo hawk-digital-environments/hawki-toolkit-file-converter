@@ -2,13 +2,106 @@ import pytest
 
 
 @pytest.fixture
-def expected_formats() -> list[str]:
+def expected_formats() -> set[str]:
     """A list of supported formats"""
-    return [
-        ".pdf",
+    return {
+        ".7z",
+        ".bib",
+        ".bmp",
+        ".commonmark",
+        ".csv",
+        ".dbf",
+        ".dbk",
+        ".djot",
         ".doc",
-        ".docx"
-    ]
+        ".docbook",
+        ".docbook4",
+        ".docbook5",
+        ".docm",
+        ".docx",
+        ".dot",
+        ".dotm",
+        ".dotx",
+        ".eml",
+        ".enw",
+        ".epub",
+        ".fb2",
+        ".gif",
+        ".gz",
+        ".htm",
+        ".html",
+        ".hwp",
+        ".hwpx",
+        ".ipynb",
+        ".j2c",
+        ".j2k",
+        ".jats",
+        ".jb2",
+        ".jbig2",
+        ".jp2",
+        ".jpeg",
+        ".jpg",
+        ".jpm",
+        ".jpx",
+        ".json",
+        ".jsonl",
+        ".key",
+        ".latex",
+        ".markdown",
+        ".md",
+        ".mdx",
+        ".mj2",
+        ".msg",
+        ".nbib",
+        ".ndjson",
+        ".numbers",
+        ".ods",
+        ".odt",
+        ".opml",
+        ".org",
+        ".pages",
+        ".pbm",
+        ".pdf",
+        ".pgm",
+        ".png",
+        ".pnm",
+        ".pot",
+        ".potm",
+        ".potx",
+        ".ppm",
+        ".ppsx",
+        ".ppt",
+        ".pptm",
+        ".pptx",
+        ".pst",
+        ".ris",
+        ".rst",
+        ".rtf",
+        ".svg",
+        ".tar",
+        ".tex",
+        ".tgz",
+        ".tif",
+        ".tiff",
+        ".toml",
+        ".tsv",
+        ".txt",
+        ".typ",
+        ".typst",
+        ".webp",
+        ".xla",
+        ".xlam",
+        ".xls",
+        ".xlsb",
+        ".xlsm",
+        ".xlsx",
+        ".xlt",
+        ".xltx",
+        ".xml",
+        ".yaml",
+        ".yml",
+        ".zip",
+    }
 
 
 def test_root_returns_service_info(client, auth_headers, expected_formats) -> None:
@@ -19,8 +112,10 @@ def test_root_returns_service_info(client, auth_headers, expected_formats) -> No
 
     body = response.json()
     assert body["service"] == "File to Markdown Converter"
-    assert body["auth"] == "X-API-KEY required"
-    assert body["supported_formats"] == expected_formats
+
+    assert body["auth"] == "Bearer token required"
+    assert len(expected_formats.difference(body["supported_formats"])) == 0, f"Unexpected supported format {expected_formats.difference(body["supported_formats"])}" 
+
     assert body["endpoints"] == {
         "/extract": "POST - Upload file for conversion",
         "/": "GET - This info page",

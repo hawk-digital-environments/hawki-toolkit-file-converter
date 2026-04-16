@@ -59,3 +59,41 @@ If you want to run with a local HAWKI instance, you can copy the `docker-compose
 
 ### Tests
 To run tests use `docker compose -f docker-compose.ci.yml up --build`
+=======
+### Devcontainer
+Using a [devcontainer](https://containers.dev/implementors/json_reference/) in this project has the advantage that required system libraries like tesserract do not have to be installed on the local system.
+Also all python development tools like do not have to be installed on the local machine.
+
+### Debugging
+Existing debug setups:
+ - vscode (see .vscode/launch.json)
+ - start a fasapi development server via `uv run dev` 
+
+### Tests
+To run tests use `docker compose -f docker-compose.ci.yml up --build`
+
+### Extracting supported file formats
+There is (currently) no interface to get supported file formats in python, so they are extracted statically.
+Example extracting supported formats in Rust:
+```
+curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
+cargo new kreuzberg_example
+cd kreuzberg_example
+cargo add kreuzberg
+```
+edit src/main.rs to contain:
+```
+use kreuzberg::core::mime::list_supported_formats;
+
+fn main() {
+    let formats = list_supported_formats();
+    assert!(!formats.is_empty());
+    assert!(formats.iter().any(|f| f.extension == "pdf"));
+
+    println!("Supported formats:");
+    for f in formats {
+        println!("{} ({})", f.extension, f.mime_type);
+    }
+}
+```
+Run `cargo run` and extract file extensions with your favorite llm.

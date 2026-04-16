@@ -1,5 +1,7 @@
 __pycache__/**
 utils/__pycache__
+__pycache__
+**/__pycache__
 .env
 node_modules
 .idea
@@ -8,3 +10,6 @@ pandoc**
 **.egg-info
 conversion.log
 **/*.pyc
+hawki_toolkit_file_converter.egg-info
+.ruff_cache
+conversion.log

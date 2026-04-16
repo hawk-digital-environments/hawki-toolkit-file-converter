@@ -1,7 +1,7 @@
 # utils/helper.py
 import re
 from urllib.parse import quote
-
+from pathlib import Path
 def make_content_disposition(filename_stem: str) -> str:
     """
     Create RFC 6266 compliant Content-Disposition header for ZIP files.
@@ -44,3 +44,123 @@ def make_content_disposition(filename_stem: str) -> str:
         header = f'attachment; filename="{safe_ascii}"; filename*=UTF-8\'\'{utf8_encoded}'
         
     return header
+
+
+def get_supported_formats()->set[str]:
+    """Supported formats.
+    
+    Supported formats are not available dynamically via python api and
+    currently need to be extracted statically by running rust. 
+    Example see: https://github.com/kreuzberg-dev/kreuzberg/blob/v4.8.5/crates/kreuzberg/src/core/mime.rs#L877-L903
+    """ 
+    return {
+        ".7z",
+        ".bib",
+        ".bmp",
+        ".commonmark",
+        ".csv",
+        ".dbf",
+        ".dbk",
+        ".djot",
+        ".doc",
+        ".docbook",
+        ".docbook4",
+        ".docbook5",
+        ".docm",
+        ".docx",
+        ".dot",
+        ".dotm",
+        ".dotx",
+        ".eml",
+        ".enw",
+        ".epub",
+        ".fb2",
+        ".gif",
+        ".gz",
+        ".htm",
+        ".html",
+        ".hwp",
+        ".hwpx",
+        ".ipynb",
+        ".j2c",
+        ".j2k",
+        ".jats",
+        ".jb2",
+        ".jbig2",
+        ".jp2",
+        ".jpeg",
+        ".jpg",
+        ".jpm",
+        ".jpx",
+        ".json",
+        ".jsonl",
+        ".key",
+        ".latex",
+        ".markdown",
+        ".md",
+        ".mdx",
+        ".mj2",
+        ".msg",
+        ".nbib",
+        ".ndjson",
+        ".numbers",
+        ".ods",
+        ".odt",
+        ".opml",
+        ".org",
+        ".pages",
+        ".pbm",
+        ".pdf",
+        ".pgm",
+        ".png",
+        ".pnm",
+        ".pot",
+        ".potm",
+        ".potx",
+        ".ppm",
+        ".ppsx",
+        ".ppt",
+        ".pptm",
+        ".pptx",
+        ".pst",
+        ".ris",
+        ".rst",
+        ".rtf",
+        ".svg",
+        ".tar",
+        ".tex",
+        ".tgz",
+        ".tif",
+        ".tiff",
+        ".toml",
+        ".tsv",
+        ".txt",
+        ".typ",
+        ".typst",
+        ".webp",
+        ".xla",
+        ".xlam",
+        ".xls",
+        ".xlsb",
+        ".xlsm",
+        ".xlsx",
+        ".xlt",
+        ".xltx",
+        ".xml",
+        ".yaml",
+        ".yml",
+        ".zip"
+    }
+
+
+def get_file_type(filename: str) -> str | None:
+    """Determine supported file type from filename."""
+    if not filename:
+        return
+    
+    ext = Path(filename).suffix.lower()
+    
+    if ext not in get_supported_formats():
+        return 
+    
+    return ext
