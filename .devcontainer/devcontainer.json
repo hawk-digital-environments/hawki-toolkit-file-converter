@@ -1,0 +1,31 @@
+{
+  "name": "HAWKI File Converter",
+  "dockerComposeFile": "docker-compose.yml",
+  "service": "file-converter",
+  "workspaceFolder": "/workspace",
+  "remoteUser": "${localEnv:USER}",
+  "portsAttributes": {
+    "8001": {
+      "label": "FastAPI Dev Server",
+      "onAutoForward": "notify"
+    }
+  },
+  "features": {
+    "ghcr.io/devcontainers/features/docker-outside-of-docker:1": {
+      "moby": false
+    }
+  },
+  "postCreateCommand": "uv sync",
+  "customizations": {
+    "vscode": {
+      "extensions": [
+        "ms-python.python",
+        "ms-python.debugpy",
+        "ms-python.black-formatter"
+      ],
+      "settings": {
+        "python.defaultInterpreterPath": "/workspace/.venv/bin/python"
+      }
+    }
+  }
+}
