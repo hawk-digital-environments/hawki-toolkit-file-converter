@@ -54,3 +54,8 @@ services:
 ### 3. Running with a local HAWKI instance
 
 If you want to run with a local HAWKI instance, you can copy the `docker-compose.local.yml` file to `docker-compose.override.yml` and start the environment with `docker compose up`. Ensure the hawki instance is running and the API key in the `.env` file matches the one on the HAWKI side. We are simply reusing the `hawki_hawk_net` network that is already created by the HAWKI environment, so no additional network configuration is needed.
+
+## Development
+
+### Tests
+To run tests use `docker compose -f docker-compose.ci.yml up --build`
