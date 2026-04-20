@@ -52,17 +52,22 @@ def doc_file(testdata_dir) -> Path:
 @pytest.fixture
 def expected_pdf_md() -> str:
     """Return the expected markdown content from PDF extraction."""
-    return "# Chunk 1-1\n\n## Page 1\n\nfoobar\n\n![p1](/images_pdf/c0_p1_i1.jpeg)"
+    return "# Chunk 1-1\n\n## Page 1\n\nFoobar\n\n![p1](/images_pdf/c0_p1_i1.jpeg)"
 
 
 @pytest.fixture
 def expected_doc_md() -> str:
     """Return the expected markdown content from DOCX extraction."""
     return (
-        "foobar\n\n"
-        "![](/tmp/tmpXXXXXX/output/media/image1.png)"
-        '{width="6.6930555555555555in" height="6.6930555555555555in"}\n'
+        "Foobar\n\n"
+        '![](/tmp/tmpXXXXXX/output/media/image1.png){width="6.6930555555555555in" height="3.6506944444444445in"}\n'
     )
+
+@pytest.fixture
+def doc_file(testdata_dir) -> Path:
+    """Return the path to the sample DOCX test file."""
+    path = testdata_dir / "foo.docx"
+    return path
 
 
 @pytest.fixture
