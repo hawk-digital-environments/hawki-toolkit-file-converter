@@ -18,4 +18,4 @@ if [ -z "${F_API_KEY:-}" ]; then
 fi
 
 echo "Running FastAPI container on http://localhost:8001 ..."
-docker run --rm -p 8001:8001 -e "F_API_KEY=${F_API_KEY}" pymupdf-extract
+docker run --rm -p 8001:80 -e "F_API_KEY=${F_API_KEY}" pymupdf-extract

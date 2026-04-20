@@ -1,5 +1,10 @@
+__pycache__/**
 utils/__pycache__
 .env
 node_modules
 .idea
 docker-compose.override.yml
+pandoc**
+**.egg-info
+conversion.log
+**/*.pyc

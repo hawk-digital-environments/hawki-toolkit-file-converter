@@ -1,4 +1,4 @@
-FROM neunerlei/python-nginx:3.14
+FROM neunerlei/python-nginx:3.14 as deployment
 
 LABEL org.opencontainers.image.authors="HAWKI Team <ki@hawk.de>"
 LABEL org.opencontainers.image.description="The HAWKI file conversion service"
@@ -45,3 +45,15 @@ COPY utils/ utils/
 
 HEALTHCHECK --interval=30s --timeout=10s --start-period=40s --retries=3 \
     CMD curl -f http://localhost/health || exit 1
+
+FROM deployment as test
+
+COPY ./tests ./tests
+COPY pytest.ini .
+
+RUN --mount=type=cache,target=/root/.cache/pip \
+    pip install --no-cache-dir \
+    pytest \
+    httpx
+
+FROM deployment
