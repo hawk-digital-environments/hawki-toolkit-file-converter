@@ -18,7 +18,7 @@ from fastapi import (
 )
 from pydantic import BaseModel
 
-from utils.processor import process_file, ExtractionConfigRequest
+from utils.processor import process_file
 from utils.logging_helper import logging_help
 from utils.helper import get_supported_formats, get_file_type
 from pathlib import Path
@@ -78,9 +78,6 @@ async def extract(file: UploadFile = File(...), config: str = Form(default=None)
         )
 
     try:
-        config_request = (
-            ExtractionConfigRequest.model_validate_json(config) if config else None
-        )
         if not get_file_type(file.filename):
             unsuported_ext = Path(file.filename).suffix.lower()
             logger.error(f"Unsupported file type: {unsuported_ext}")
@@ -88,7 +85,7 @@ async def extract(file: UploadFile = File(...), config: str = Form(default=None)
                 status_code=400, 
                 detail=f"Unsupported file type `{unsuported_ext}`. Supported types: {', '.join(sorted(get_supported_formats()))}"
             )
-        return await process_file(file, config_request)
+        return await process_file(file)
     except HTTPException:
         raise
     except Exception as e:

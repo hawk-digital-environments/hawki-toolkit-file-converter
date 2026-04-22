@@ -2,6 +2,10 @@
 import re
 from urllib.parse import quote
 from pathlib import Path
+from PIL import Image
+from fastapi import UploadFile
+import io
+
 def make_content_disposition(filename_stem: str) -> str:
     """
     Create RFC 6266 compliant Content-Disposition header for ZIP files.
@@ -153,6 +157,11 @@ def get_supported_formats()->set[str]:
     }
 
 
+def get_image_file_formats():
+    """The list of files to be treated as an image from supported formats."""
+    return { ".jpg", ".jpeg", ".png", ".gif", ".bmp", ".webp", ".tif", ".tiff", ".jp2", ".j2k", ".jpx", ".jpm", ".mj2", ".pbm", ".pgm", ".ppm", ".pnm" }
+
+
 def get_file_type(filename: str) -> str | None:
     """Determine supported file type from filename."""
     if not filename:
@@ -164,3 +173,9 @@ def get_file_type(filename: str) -> str | None:
         return 
     
     return ext
+
+
+def is_image(file: UploadFile) -> bool:
+    """Check if the file is a readable image format."""
+    return get_file_type(file.filename) in get_image_file_formats()
+    

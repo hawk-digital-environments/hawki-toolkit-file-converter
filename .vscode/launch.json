@@ -26,11 +26,12 @@
       "justMyCode": false,
       "args": [
         "-vvv",
-        "tests/test_extract.py::test_extract_unsupported_file_type_returns_500"
+        "tests/test_pdf.py"
       ],
       "env": {
-        // DEBUG_ZIP=true
+        // "DEBUG_ZIP": "true"
+        "F_API_KEY": "test-secret-key"
       }
-    },
+    }
   ]
 }

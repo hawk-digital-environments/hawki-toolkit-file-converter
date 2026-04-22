@@ -1,15 +1,28 @@
 import os
-from collections.abc import Generator
+from collections.abc import Generator, Callable
 from pathlib import Path
 
 import pytest
 from fastapi.testclient import TestClient
 
+from fastapi.testclient import TestClient
+import io
+import re
+import zipfile
+from pathlib import Path
 import json
 import pytest
-from fastapi.testclient import TestClient
+from httpx import Response
+import logging
+import re
+import yaml
+from collections.abc import Callable
+import json
 
 from main import app  # noqa: E402
+
+
+logger = logging.getLogger(__name__)
 
 TESTDATA_DIR = Path(__file__).parent / "testdata"
 TEST_API_KEY = "test-secret-key"
@@ -19,6 +32,7 @@ TEST_API_KEY = "test-secret-key"
 def api_key(monkeypatch):
     """Set the api key in tests."""
     monkeypatch.setenv("F_API_KEY", TEST_API_KEY)
+
 
 @pytest.fixture
 def client() -> Generator[TestClient, None, None]:
@@ -40,51 +54,10 @@ def testdata_dir() -> Path:
 
 
 @pytest.fixture
-def pdf_file(testdata_dir) -> Path:
-    """Return the path to the sample PDF test file."""
-    path = testdata_dir / "bar.pdf"
+def image_file(testdata_dir) -> Path:
+    """Return the path to the sample image test file."""
+    path = testdata_dir / "images" / "ocr_png.png"
     return path
-
-
-@pytest.fixture
-def doc_file(testdata_dir) -> Path:
-    """Return the path to the sample DOCX test file."""
-    path = testdata_dir / "foo.docx"
-    return path
-
-
-@pytest.fixture
-def expected_pdf_md() -> str:
-    """Return the expected markdown content from PDF extraction."""
-    return "\\--- Page 1 ---\n\nFoobar\n\nHOLIDAY THEME OCR TEST\n\nDEUTSCHE WÖRTER\n\nENGLISH WORDS\n\nBEACH\n\nSTRAND\n\nURLAUB\n\nRELAX\n\nSONNE\n\nSUMMER\n\nMEER\n\nTRAVEL\n"
-
-
-@pytest.fixture
-def expected_pdf_metadata()-> str:
-    """Return the expected PDF metadata."""
-    return json.loads('{\n  "created_at": "2026-04-20T09:09:30Z",\n  "created_by": "Writer",\n  "pages": {\n    "total_count": 1,\n    "unit_type": "page",\n    "boundaries": [\n      {\n        "byte_start": 18,\n        "byte_end": 24,\n        "page_number": 1\n      }\n    ],\n    "pages": [\n      {\n        "number": 1,\n        "dimensions": [\n          595.303955078125,\n          841.8897705078125\n        ],\n        "is_blank": false\n      }\n    ]\n  },\n  "format_type": "pdf",\n  "pdf_version": "1.7",\n  "producer": "LibreOffice 25.8.6.2 (X86_64) / LibreOffice Community",\n  "is_encrypted": false,\n  "width": 595,\n  "height": 842,\n  "page_count": 1\n}')
-
-
-@pytest.fixture
-def expected_doc_md() -> str:
-    """Return the expected markdown content from DOCX extraction."""
-    return (
-        "Foobar\n\n"
-        "![](image_0.png)\n"
-    )
-
-
-@pytest.fixture
-def doc_file(testdata_dir) -> Path:
-    """Return the path to the sample DOCX test file."""
-    path = testdata_dir / "foo.docx"
-    return path
-
-
-@pytest.fixture
-def expected_docx_metadata()-> str:
-    """Return the expected DOCX metadata."""
-    return json.loads('{\n  "language": "de-DE",\n  "created_at": "2026-04-20T09:01:14Z",\n  "modified_at": "2026-04-20T09:02:58Z",\n  "format_type": "docx",\n  "core_properties": {\n    "title": null,\n    "subject": null,\n    "creator": null,\n    "keywords": null,\n    "description": null,\n    "last_modified_by": null,\n    "revision": "1",\n    "created": "2026-04-20T09:01:14Z",\n    "modified": "2026-04-20T09:02:58Z",\n    "category": null,\n    "content_status": null,\n    "language": "de-DE",\n    "identifier": null,\n    "version": null,\n    "last_printed": "2026-04-20T09:09:30Z"\n  },\n  "app_properties": {\n    "application": "LibreOffice/25.8.6.2$Linux_X86_64 LibreOffice_project/a46b460d1686bb49c718d2ef5f88b83ff2dc4981",\n    "app_version": "15.0000",\n    "template": null,\n    "total_time": 0,\n    "pages": 1,\n    "words": 1,\n    "characters": 6,\n    "characters_with_spaces": 6,\n    "lines": null,\n    "paragraphs": 1,\n    "company": null,\n    "doc_security": null,\n    "scale_crop": null,\n    "links_up_to_date": null,\n    "shared_doc": null,\n    "hyperlinks_changed": null\n  },\n  "custom_properties": {},\n  "character_count": 6,\n  "total_editing_time_minutes": 0,\n  "word_count": 1,\n  "paragraph_count": 1,\n  "page_count": 1,\n  "application": "LibreOffice/25.8.6.2$Linux_X86_64 LibreOffice_project/a46b460d1686bb49c718d2ef5f88b83ff2dc4981",\n  "revision": "1"\n}')
 
 
 @pytest.fixture
@@ -95,3 +68,118 @@ def debug_zip(request, tmp_path) -> Path:
     out = tmp_path / "debug_zips" / request.node.name
     out.mkdir(parents=True, exist_ok=True)
     return out
+
+
+@pytest.fixture
+def assert_zip_response(
+    save_debug_zip, debug_zip
+) -> Callable[[Response, Path | None, str], None]:
+    """Return a helper that asserts a response is a valid zip download."""
+
+    def _assert_zip_response(response: Response, zip_filename: str) -> None:
+        assert response.status_code == 200
+        assert response.headers["content-type"] == "application/zip"
+        assert "attachment" in response.headers.get("content-disposition", "")
+        assert zipfile.is_zipfile(io.BytesIO(response.content))
+
+        save_debug_zip(response, debug_zip, zip_filename)
+
+    return _assert_zip_response
+
+
+@pytest.fixture
+def extract_zip_entries() -> Callable[[Response], dict[str, bytes]]:
+    """Return a helper that extracts zip entries from a response."""
+
+    def _extract_zip_entries(response: Response) -> dict[str, bytes]:
+        buf = io.BytesIO(response.content)
+        with zipfile.ZipFile(buf) as z:
+            return {
+                name: z.read(name) for name in z.namelist() if not name.endswith("/")
+            }
+
+    return _extract_zip_entries
+
+
+@pytest.fixture
+def save_debug_zip() -> Callable[[Response, Path | None, str], None]:
+    """Return a helper that saves response content to a debug directory."""
+
+    def _save_debug_zip(
+        response: Response, debug_dir: Path | None, filename: str
+    ) -> None:
+        if debug_dir is None:
+            return
+        dest = debug_dir / filename
+        dest.write_bytes(response.content)
+        logger.info(f"DEBUG_ZIP: saved to {dest}")
+
+    return _save_debug_zip
+
+
+@pytest.fixture
+def assert_metadata_content() -> Callable[[str, str, dict[str, bytes]], None]:
+    """Return a helper that asserts metadata file content matches expected."""
+
+    def _assert_metadata_content(
+        actual_path: str, expected_content: str, entries: dict[str, bytes]
+    ) -> None:
+        actual = json.loads(entries[actual_path].decode("utf-8"))
+        assert (
+            actual == expected_content
+        ), f"Metadata content mismatch for {actual_path}.\n"
+
+    return _assert_metadata_content
+
+
+@pytest.fixture
+def assert_markdownfile_content() -> Callable[[str, str, dict[str, bytes]], None]:
+    """Return a helper that asserts markdown file content matches expected."""
+
+    def _assert_markdownfile_content(
+        actual_path: str, expected_content: str, entries: dict[str, bytes]
+    ) -> None:
+        actual = entries[actual_path].decode("utf-8")
+        actual = re.sub(r"/tmp/tmp[^/]+/", "/tmp/tmpXXXXXX/", actual)
+
+        assert (
+            actual == expected_content
+        ), f"Markdown content mismatch for {actual_path}.\n"
+        assert actual == expected_content
+
+    return _assert_markdownfile_content
+
+
+@pytest.fixture
+def assert_markdown() -> Callable[[str, str, dict[str, bytes]], None]:
+    """Return a helper that asserts markdown file content and header matches expected."""
+
+    def extract_header_and_content(text):
+        match = re.search(r"---\n(.*?)\n---\n?(.*)", text, re.DOTALL)
+        if not match:
+            return None, text  # no header → whole text is content
+
+        header_text = match.group(1)
+        content = match.group(2)
+
+        data = yaml.safe_load(header_text)
+
+        return data, content
+
+    def _assert_markdown(
+        actual_path: str,
+        expected_content: str,
+        expected_header: dict,
+        entries: dict[str, bytes],
+    ) -> None:
+        actual = entries[actual_path].decode("utf-8")
+        header, content = extract_header_and_content(actual)
+        if "keywords" in expected_header and( val := expected_header.pop("keywords")):
+            assert sorted(val) == sorted(header.pop("keywords"))
+        assert header == expected_header
+        assert (
+            content == expected_content
+        ), f"Markdown content mismatch for {actual_path}.\n"
+        assert content == expected_content
+
+    return _assert_markdown
