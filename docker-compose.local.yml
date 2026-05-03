@@ -3,6 +3,10 @@ services:
     networks:
       - hawki-network
       - default
+  file-converter-worker:
+    networks:
+      - hawki-network
+      - default
 networks:
   hawki-network:
     name: hawki-network

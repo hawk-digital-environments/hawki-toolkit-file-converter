@@ -32,6 +32,7 @@ RUN --mount=type=cache,target=/root/.cache/pip \
     fastapi \
     uvicorn \
     python-multipart \
+    aio-pika \
     pymupdf \
     pypandoc \
     pytesseract \
@@ -42,6 +43,9 @@ RUN --mount=type=cache,target=/root/.cache/pip \
 # Copy the application files into the container
 COPY main.py .
 COPY utils/ utils/
+COPY common/ common/
+COPY rabbitmq/ rabbitmq/
+COPY workers/ workers/
 
 HEALTHCHECK --interval=30s --timeout=10s --start-period=40s --retries=3 \
     CMD curl -f http://localhost/health || exit 1
