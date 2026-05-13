@@ -104,7 +104,33 @@ def expected_formats() -> set[str]:
     }
 
 
-def test_root_returns_service_info(client, auth_headers, expected_formats) -> None:
+@pytest.fixture
+def expected_image_formats() -> set[str]:
+    """The expected image formats."""
+    return {
+        ".jpg",
+        ".jpeg",
+        ".png",
+        ".gif",
+        ".bmp",
+        ".webp",
+        ".tif",
+        ".tiff",
+        ".jp2",
+        ".j2k",
+        ".jpx",
+        ".jpm",
+        ".mj2",
+        ".pbm",
+        ".pgm",
+        ".ppm",
+        ".pnm",
+    }
+
+
+def test_root_returns_service_info(
+    client, auth_headers, expected_formats, expected_image_formats
+) -> None:
     """Test that GET / returns service info with supported formats and endpoints."""
     response = client.get("/", headers=auth_headers)
 
@@ -114,7 +140,12 @@ def test_root_returns_service_info(client, auth_headers, expected_formats) -> No
     assert body["service"] == "File to Markdown Converter"
 
     assert body["auth"] == "Bearer token required"
-    assert len(expected_formats.difference(body["supported_formats"])) == 0, f"Unexpected supported format {expected_formats.difference(body["supported_formats"])}" 
+    assert (
+        len(expected_formats.difference(body["supported_formats"])) == 0
+    ), f"Unexpected supported format {expected_formats.difference(body["supported_formats"])}"
+    assert (
+        len(expected_image_formats.difference(body["image_formats"])) == 0
+    ), f"Unexpected supported image format {expected_image_formats.difference(body["supported_formats"])}"
 
     assert body["endpoints"] == {
         "/extract": "POST - Upload file for conversion",

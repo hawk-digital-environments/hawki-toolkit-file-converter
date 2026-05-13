@@ -1,3 +1,6 @@
+import pytest
+
+
 def test_extract_text_file(
     client,
     auth_headers,
@@ -34,6 +37,61 @@ def test_extract_text_file(
             "mimeType": "text/plain",
             "name": "baz.txt",
             "size": 11,
+        },
+        entries,
+    )
+
+
+@pytest.mark.parametrize(
+    "expected_filename",
+    [
+        "täst öäü.txt",
+        "my file.txt",
+        "Müller Datei (1).txt",
+        "文件.txt",
+        "\U0001f4c4dokument.txt",
+        "café résumé.txt",
+    ],
+    ids=[
+        "umlauts",
+        "spaces",
+        "umlauts_spaces_parens",
+        "cjk",
+        "emoji",
+        "accented",
+    ],
+)
+def test_extract_text_file_special_filenames(
+    client,
+    auth_headers,
+    assert_zip_response,
+    extract_zip_entries,
+    assert_metadata_content,
+    expected_filename,
+) -> None:
+    """Test that filenames with special characters are handled correctly."""
+    content = b"hello special chars"
+    response = client.post(
+        "/extract",
+        files={"file": (expected_filename, content, "text/plain")},
+        headers=auth_headers,
+    )
+    assert_zip_response(response, "special.zip")
+    entries = extract_zip_entries(response)
+
+    assert sorted([name for name in entries]) == sorted(
+        ["output/chunks/00001.md", "output/meta.json"]
+    )
+    assert_metadata_content(
+        "output/meta.json",
+        {
+            "chunks": 1,
+            "languages": [
+                "de",
+            ],
+            "mimeType": "text/plain",
+            "name": expected_filename,
+            "size": len(content),
         },
         entries,
     )

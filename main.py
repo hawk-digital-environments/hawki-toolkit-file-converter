@@ -20,7 +20,7 @@ from pydantic import BaseModel
 
 from utils.processor import process_file
 from utils.logging_helper import logging_help
-from utils.helper import get_supported_formats, get_file_type
+from utils.helper import get_supported_formats, get_file_type, get_image_file_formats
 from pathlib import Path
 
 app = FastAPI(title="File to Markdown Converter")
@@ -99,6 +99,7 @@ async def root():
         "service": "File to Markdown Converter",
         "auth": "Bearer token required",
         "supported_formats": get_supported_formats(),
+        "image_formats": get_image_file_formats(),
         "endpoints": {
             "/extract": "POST - Upload file for conversion",
             "/": "GET - This info page",
