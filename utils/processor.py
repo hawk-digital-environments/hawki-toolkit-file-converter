@@ -27,7 +27,7 @@ from kreuzberg import (
     extract_file,
 )
 from PIL import Image
-from utils.helper import is_image, make_content_disposition
+from utils.helper import is_image, is_image_filename, make_content_disposition
 from typing import Any
 
 
@@ -469,14 +469,11 @@ async def process_file_contents(
     _write_metadata(file_path, result, total_chunks, languages, all_keywords, zip_dir)
 
 
-async def process_file(
-    file: UploadFile,
-) -> StreamingResponse:
-    """Process any supported file and return ZIP with markdown and images.
-
-    Args:
-        file: The uploaded file.
-    """
+async def process_file_core(
+    file_bytes: bytes,
+    filename: str,
+) -> tuple[bytes, dict[str, str]]:
+    """Core file processing. Returns (zip_bytes, response_headers)."""
     with TemporaryDirectory() as tmp_base:
         tmpdir = Path(tmp_base)
 
@@ -484,11 +481,10 @@ async def process_file(
         assets_dir = zip_dir / "assets"
         assets_dir.mkdir(parents=True, exist_ok=True)
 
-        filename = file.filename or "document"
         file_path = tmpdir / filename
-        file_path.write_bytes(await file.read())
+        file_path.write_bytes(file_bytes)
 
-        if is_image(file):
+        if is_image_filename(filename):
             await process_image_content(file_path, assets_dir)
         else:
             await process_file_contents(file_path, zip_dir, assets_dir)
@@ -500,13 +496,26 @@ async def process_file(
                     z.write(p, p.relative_to(zip_dir.parent))
         buf.seek(0)
 
-        return StreamingResponse(
-            buf,
-            media_type="application/zip",
-            headers={
-                "Content-Disposition": make_content_disposition(Path(filename).stem)
-            },
-        )
+        headers = {
+            "Content-Disposition": make_content_disposition(Path(filename).stem)
+        }
+
+        return buf.getvalue(), headers
+
+
+async def process_file(
+    file: UploadFile,
+) -> StreamingResponse:
+    """Process any supported file and return ZIP with markdown and images."""
+    file_bytes = await file.read()
+    zip_bytes, headers = await process_file_core(
+        file_bytes, file.filename or "document"
+    )
+    return StreamingResponse(
+        io.BytesIO(zip_bytes),
+        media_type="application/zip",
+        headers=headers,
+    )
 
 
 def save_as_webp(

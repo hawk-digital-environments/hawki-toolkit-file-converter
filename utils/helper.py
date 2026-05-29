@@ -177,5 +177,10 @@ def get_file_type(filename: str) -> str | None:
 
 def is_image(file: UploadFile) -> bool:
     """Check if the file is a readable image format."""
-    return get_file_type(file.filename) in get_image_file_formats()
+    return is_image_filename(file.filename)
+
+
+def is_image_filename(filename: str | None) -> bool:
+    """Check if the filename is a readable image format."""
+    return get_file_type(filename) in get_image_file_formats()
     

@@ -2,10 +2,13 @@
 File-to-Markdown converter service powered by kreuzberg.
 """
 
+import asyncio
 import os
 import re
-import kreuzberg
+import shutil
+import uuid
 
+import kreuzberg
 from fastapi import (
     FastAPI,
     File,
@@ -14,14 +17,15 @@ from fastapi import (
     Depends,
     Header,
     status,
-    Form,
 )
+from pathlib import Path
 from pydantic import BaseModel
+from prefect.deployments import run_deployment
+from starlette.background import BackgroundTask
+from starlette.responses import StreamingResponse
 
-from utils.processor import process_file
 from utils.logging_helper import logging_help
 from utils.helper import get_supported_formats, get_file_type, get_image_file_formats
-from pathlib import Path
 
 app = FastAPI(title="File to Markdown Converter")
 logger = logging_help()
@@ -29,6 +33,9 @@ logger = logging_help()
 REQUIRED_KEY = os.getenv("F_API_KEY", "").strip()
 if not REQUIRED_KEY:
     raise RuntimeError("F_API_KEY not set! Server cannot run without it.")
+
+DEPLOYMENT_NAME = "run-process-file/process-file"
+SHARED_TMP = Path("/tmp/hawki-file-converter")
 
 
 async def require_api_key(authorization: str | None = Header(default=None)):
@@ -56,6 +63,28 @@ def _run_dependency_checks() -> None:
         raise RuntimeError("Missing binary: tesseract")
 
 
+def _cleanup(fh, run_dir: str) -> None:
+    fh.close()
+    shutil.rmtree(run_dir, ignore_errors=True)
+
+
+async def _run_processing(
+    file_path: str, filename: str, result_dir: str
+) -> dict:
+    flow_run = await run_deployment(
+        name=DEPLOYMENT_NAME,
+        parameters={
+            "file_path": file_path,
+            "filename": filename,
+            "result_dir": result_dir,
+        },
+    )
+    result = flow_run.state.result()
+    if asyncio.iscoroutine(result):
+        result = await result
+    return result
+
+
 @app.post("/extract", dependencies=[Depends(require_api_key)])
 async def extract(file: UploadFile = File(...)):
     """
@@ -78,22 +107,48 @@ async def extract(file: UploadFile = File(...)):
             f"Filename contains spaces or special characters: {repr(file.filename)}"
         )
 
+    if not get_file_type(file.filename):
+        unsuported_ext = Path(file.filename).suffix.lower()
+        logger.error(f"Unsupported file type: {unsuported_ext}")
+        raise HTTPException(
+            status_code=400,
+            detail=f"Unsupported file type `{unsuported_ext}`. Supported types: {', '.join(sorted(get_supported_formats()))}"
+        )
+
+    run_id = str(uuid.uuid4())
+    run_dir = SHARED_TMP / run_id
+
     try:
-        if not get_file_type(file.filename):
-            unsuported_ext = Path(file.filename).suffix.lower()
-            logger.error(f"Unsupported file type: {unsuported_ext}")
-            raise HTTPException(
-                status_code=400, 
-                detail=f"Unsupported file type `{unsuported_ext}`. Supported types: {', '.join(sorted(get_supported_formats()))}"
-            )
-        return await process_file(file)
+        upload_path = run_dir / "upload" / (file.filename or "document")
+        upload_path.parent.mkdir(parents=True)
+        upload_path.write_bytes(await file.read())
+
+        result_dir = run_dir / "result"
+        result = await _run_processing(
+            str(upload_path),
+            file.filename or "document",
+            str(result_dir),
+        )
+
+        result_path = Path(result["result_path"])
+        fh = open(result_path, "rb")
+
+        return StreamingResponse(
+            content=fh,
+            media_type="application/zip",
+            headers=result["headers"],
+            background=BackgroundTask(_cleanup, fh, str(run_dir)),
+        )
     except HTTPException:
+        shutil.rmtree(run_dir, ignore_errors=True)
         raise
     except RuntimeError as e:
         logger.exception(f"Extraction failed for {repr(file.filename)}: {e}")
+        shutil.rmtree(run_dir, ignore_errors=True)
         raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
         logger.exception(f"Extraction failed for {repr(file.filename)}: {e}")
+        shutil.rmtree(run_dir, ignore_errors=True)
         raise HTTPException(status_code=500, detail="conversion_failed")
 
 

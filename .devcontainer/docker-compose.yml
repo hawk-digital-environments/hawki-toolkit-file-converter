@@ -13,4 +13,4 @@ services:
     user: "0:0"
     environment:
       - F_API_KEY=${F_API_KEY:-dev}
-    command: sleep infinity
+    entrypoint: sleep infinity

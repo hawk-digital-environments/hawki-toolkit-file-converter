@@ -70,23 +70,23 @@ COPY . .
 CMD ["uv", "run", "--no-sync", "pytest", "-vvv", "-x"]
 
 
-FROM development as requirements
+FROM development AS requirements
 
 USER root
 
 WORKDIR /build-requirements
-COPY pyproject.toml uv.lock .
+COPY pyproject.toml uv.lock ./
 RUN uv export --no-dev --no-hashes --no-emit-project -o requirements.txt > requirements.txt
 
 
-FROM base as deployment 
+FROM base AS deployment 
 
 COPY --from=requirements /build-requirements/requirements.txt /var/www/html/hawki-toolkit-file-converter-requirements.txt
 
 RUN --mount=type=cache,target=/root/.cache/pip \
     pip install --no-cache-dir -r requirements.txt -r /var/www/html/hawki-toolkit-file-converter-requirements.txt && rm /var/www/html/hawki-toolkit-file-converter-requirements.txt
 
-COPY main.py .
+COPY main.py task.py ./
 
 COPY utils/ utils/
 
@@ -96,8 +96,28 @@ HEALTHCHECK --interval=30s --timeout=10s --start-period=40s --retries=3 \
 
 FROM deployment
 
+RUN mkdir -p /var/www/.prefect /task-storage /container/custom/supervisor/conf.d && chown www-data:www-data /var/www/.prefect /task-storage
+
+COPY docker/custom/supervisor/conf.d/*.conf /container/templates/supervisor/conf.d/
+COPY docker/custom/nginx/*.conf /container/custom/nginx/
+
 ENV PYTHON_APP_MODULE="main:app"
 ENV GUNICORN_WORKER_CLASS="uvicorn.workers.UvicornWorker"
+ENV GUNICORN_WORKER_CLASS="uvicorn.workers.UvicornWorker"
+
+ENV PREFECT_HOME="/var/www/.prefect"
+ENV PREFECT_SERVER_API_HOST="0.0.0.0"
+ENV PREFECT_API_URL="http://127.0.0.1:4200/api"
+ENV PREFECT_API_DATABASE_CONNECTION_URL="sqlite+aiosqlite:////var/www/.prefect/prefect.db?timeout=60"
+ENV PREFECT_LOCAL_STORAGE_PATH="/task-storage"
+ENV PREFECT_LOGGING_LOG_PRINTS="true"
+ENV PREFECT_LOGGING_TO_API_WHEN_MISSING_FLOW="ignore"
+ENV PREFECT_UI_SERVE_BASE="/prefect/"
+ENV PREFECT_UI_API_URL="/prefect/api"
+
+ENV WORKER_COUNT="1"
 ENV HOME=/tmp
 # See: https://github.com/kreuzberg-dev/kreuzberg/blob/2e9fdd4fe342122225c0a7ff29e1da11bd84499e/crates/kreuzberg-cli/README.md?plain=1#L827
 ENV RUST_LOG=info
+
+

@@ -4,6 +4,7 @@ from pathlib import Path
 
 import pytest
 from fastapi.testclient import TestClient
+from prefect.testing.utilities import prefect_test_harness
 
 from fastapi.testclient import TestClient
 import io
@@ -28,10 +29,26 @@ TESTDATA_DIR = Path(__file__).parent / "testdata"
 TEST_API_KEY = "test-secret-key"
 
 
+@pytest.fixture(autouse=True, scope="session")
+def prefect_db():
+    with prefect_test_harness():
+        yield
+
+
 @pytest.fixture(autouse=True)
 def api_key(monkeypatch):
     """Set the api key in tests."""
     monkeypatch.setenv("F_API_KEY", TEST_API_KEY)
+
+
+@pytest.fixture(autouse=True)
+def _bypass_prefect_deployment(monkeypatch):
+    from task import run_process_file
+
+    async def _run_processing(file_path: str, filename: str, result_dir: str) -> dict:
+        return await run_process_file(file_path, filename, result_dir)
+
+    monkeypatch.setattr("main._run_processing", _run_processing)
 
 
 @pytest.fixture

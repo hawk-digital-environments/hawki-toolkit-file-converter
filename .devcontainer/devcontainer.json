@@ -3,7 +3,6 @@
   "dockerComposeFile": "docker-compose.yml",
   "service": "file-converter",
   "workspaceFolder": "/workspace",
-  "forwardPorts": [8001],
   "remoteUser": "${localEnv:USER}",
   "portsAttributes": {
     "8001": {
@@ -11,12 +10,18 @@
       "onAutoForward": "notify"
     }
   },
+  "features": {
+    "ghcr.io/devcontainers/features/docker-outside-of-docker:1": {
+      "moby": false
+    }
+  },
   "postCreateCommand": "uv sync",
   "customizations": {
     "vscode": {
       "extensions": [
         "ms-python.python",
-        "ms-python.debugpy"
+        "ms-python.debugpy",
+        "ms-python.black-formatter"
       ],
       "settings": {
         "python.defaultInterpreterPath": "/workspace/.venv/bin/python"

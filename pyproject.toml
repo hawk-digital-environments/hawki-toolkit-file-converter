@@ -8,6 +8,7 @@ dependencies = [
     "fastapi~=0.136.0",
     "kreuzberg==4.9.2",
     "pillow>=12.2.0",
+    "prefect>=3.7.2",
     "pydantic~=2.13.1",
     "python-multipart~=0.0.26",
     "pyyaml>=6.0.3",
