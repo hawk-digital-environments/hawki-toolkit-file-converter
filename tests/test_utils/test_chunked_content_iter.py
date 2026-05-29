@@ -42,11 +42,25 @@ def test_long_word_mixed_with_normal_words():
 def test_exact_max_length():
     assert _collect("12345", max_length=5) == ["12345"]
 
-def test_exact_max_length_not_splitting_numbers():
+def test_exceed_max_length_not_splitting_numbers():
     assert _collect("12.345", max_length=5) == ["12.345"]
 
-def test_exact_max_length_not_splitting_numbers():
-    assert _collect("av.345", max_length=5) == ["av.", "345"]
+def test_comma_separated_number_not_hard_split():
+    assert _collect("12,345", max_length=3) == ["12,345"]
+
+def test_comma_separated_number_with_decimal_not_hard_split():
+    assert _collect("1,234.56", max_length=3) == ["1,234.56"]
+
+def test_no_number_split():
+    """Test that numbers are not split at all."""
+    assert _collect("av345", max_length=2) == ["av", "345"]
+
+def test_no_sentence_end_split():
+    """Test that last character in sentence is not split to new file."""
+    assert _collect("ab.cd!ef?", max_length=2) == ["ab.", "cd!", "ef?"]
+
+def test_pure_number_not_hard_split():
+    assert _collect("12345", max_length=3) == ["12345"]
 
 def test_text_without_punctuation():
     assert _collect("hello world", max_length=20) == ["hello world"]

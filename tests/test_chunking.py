@@ -4,14 +4,12 @@ from pathlib import Path
 
 @pytest.fixture
 def file_to_test_chunks(testdata_dir) -> Path:
-    """A simple file containing numbers from 0 to 9 to test chunking."""
-    path = testdata_dir / "0123456789.pdf"
+    path = testdata_dir / "abcdefghij.pdf"
     return path
 
 
 @pytest.fixture
 def chunk_env_1(monkeypatch):
-    """A chunk env set in tests."""
     monkeypatch.setenv("MAX_CHUNK_LENGTH", str(1))
 
 
@@ -25,7 +23,6 @@ def test_chunk_with_1(
     assert_metadata_content,
     assert_markdown,
 ) -> None:
-    """Test that chunking works as expected."""
     with open(file_to_test_chunks, "rb") as f:
         response = client.post(
             "/extract",
@@ -51,10 +48,11 @@ def test_chunk_with_1(
             "output/meta.json",
         ]
     )
+    letters = "abcdefghij"
     for md_num in range(1, 10):
         assert_markdown(
             f"output/chunks/0000{md_num}.md",
-            f"\n{md_num-1}",
+            f"\n{letters[md_num-1]}",
             {
                 "chunk": md_num,
                 "file": f"0000{md_num}.md",
@@ -65,7 +63,7 @@ def test_chunk_with_1(
         )
     assert_markdown(
         f"output/chunks/00010.md",
-        f"\n9",
+        f"\nj",
         {
             "chunk": 10,
             "file": f"00010.md",
@@ -82,7 +80,7 @@ def test_chunk_with_1(
             ],
             "mimeType": "application/pdf",
             "name": "bar.pdf",
-            "size": 13084,
+            "size": 590,
         },
         entries,
     )
@@ -90,7 +88,6 @@ def test_chunk_with_1(
 
 @pytest.fixture
 def chunk_env_2(monkeypatch):
-    """A chunk env set in tests."""
     monkeypatch.setenv("MAX_CHUNK_LENGTH", str(2))
 
 @pytest.mark.usefixtures("chunk_env_2")
@@ -103,7 +100,6 @@ def test_chunk_with_2(
     assert_metadata_content,
     assert_markdown,
 ) -> None:
-    """Test that chunking works as expected."""
     with open(file_to_test_chunks, "rb") as f:
         response = client.post(
             "/extract",
@@ -126,7 +122,7 @@ def test_chunk_with_2(
     )
     assert_markdown(
         f"output/chunks/00001.md",
-        f"\n01",
+        f"\nab",
         {
             "chunk": 1,
             "file": "00001.md",
@@ -137,7 +133,7 @@ def test_chunk_with_2(
     )
     assert_markdown(
         f"output/chunks/00002.md",
-        f"\n23",
+        f"\ncd",
         {
             "chunk": 2,
             "file": "00002.md",
@@ -148,7 +144,7 @@ def test_chunk_with_2(
     )
     assert_markdown(
         f"output/chunks/00003.md",
-        f"\n45",
+        f"\nef",
         {
             "chunk": 3,
             "file": "00003.md",
@@ -159,7 +155,7 @@ def test_chunk_with_2(
     )
     assert_markdown(
         f"output/chunks/00004.md",
-        f"\n67",
+        f"\ngh",
         {
             "chunk": 4,
             "file": "00004.md",
@@ -170,7 +166,7 @@ def test_chunk_with_2(
     )
     assert_markdown(
         f"output/chunks/00005.md",
-        f"\n89",
+        f"\nij",
         {
             "chunk": 5,
             "file": f"00005.md",
@@ -187,7 +183,7 @@ def test_chunk_with_2(
             ],
             "mimeType": "application/pdf",
             "name": "bar.pdf",
-            "size": 13084,
+            "size": 590,
         },
         entries,
     )
@@ -195,7 +191,6 @@ def test_chunk_with_2(
 
 @pytest.fixture
 def chunk_env_3(monkeypatch):
-    """A chunk env set in tests."""
     monkeypatch.setenv("MAX_CHUNK_LENGTH", str(3))
 
 @pytest.mark.usefixtures("chunk_env_3")
@@ -208,7 +203,6 @@ def test_chunk_with_3(
     assert_metadata_content,
     assert_markdown,
 ) -> None:
-    """Test that chunking works as expected."""
     with open(file_to_test_chunks, "rb") as f:
         response = client.post(
             "/extract",
@@ -230,7 +224,7 @@ def test_chunk_with_3(
     )
     assert_markdown(
         f"output/chunks/00001.md",
-        f"\n012",
+        f"\nabc",
         {
             "chunk": 1,
             "file": "00001.md",
@@ -241,7 +235,7 @@ def test_chunk_with_3(
     )
     assert_markdown(
         f"output/chunks/00002.md",
-        f"\n345",
+        f"\ndef",
         {
             "chunk": 2,
             "file": "00002.md",
@@ -252,7 +246,7 @@ def test_chunk_with_3(
     )
     assert_markdown(
         f"output/chunks/00003.md",
-        f"\n678",
+        f"\nghi",
         {
             "chunk": 3,
             "file": "00003.md",
@@ -263,7 +257,7 @@ def test_chunk_with_3(
     )
     assert_markdown(
         f"output/chunks/00004.md",
-        f"\n9",
+        f"\nj",
         {
             "chunk": 4,
             "file": "00004.md",
@@ -280,7 +274,7 @@ def test_chunk_with_3(
             ],
             "mimeType": "application/pdf",
             "name": "bar.pdf",
-            "size": 13084,
+            "size": 590,
         },
         entries,
     )

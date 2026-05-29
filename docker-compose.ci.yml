@@ -5,6 +5,5 @@ services:
       dockerfile: Dockerfile
       target: test
     entrypoint: []
-    command: ["python", "-m", "pytest", "-vvv", "-x"]
     environment:
       - F_API_KEY=test-secret-key

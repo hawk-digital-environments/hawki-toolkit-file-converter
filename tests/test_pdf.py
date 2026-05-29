@@ -15,7 +15,7 @@ def expected_pdf_md_content() -> str:
     return (
         "\n\n"
         + "> [Image: ../assets/image_0.webp]\n"
-        + "> HOLIDAY THEME OCR TEST || WÖRTER || DEUTSCHE || ENGLISH WORDS || BEACH || STRAND || RELAX || URLAUB || SONNE || SUMMER || TRAVEL || MEER\n"
+        + "> HOLIDAY THEME OCR TEST || WÖRTER || DEUTSCHE || ENGLISH WORDS || BEACH || STRAND || RELAX || URLAUB || SONNE || SUMMER || TRAVEL || MEER\n\n"
         + "Foobar"
     )
 

@@ -4,7 +4,7 @@ File-to-Markdown converter service powered by kreuzberg.
 
 import os
 import re
-import shutil
+import kreuzberg
 
 from fastapi import (
     FastAPI,
@@ -51,12 +51,13 @@ class HealthCheck(BaseModel):
 
 
 def _run_dependency_checks() -> None:
-    if shutil.which("tesseract") is None:
+    """Check that expected ocr backend is installed"""
+    if not "paddle-ocr" in kreuzberg.list_ocr_backends():
         raise RuntimeError("Missing binary: tesseract")
 
 
 @app.post("/extract", dependencies=[Depends(require_api_key)])
-async def extract(file: UploadFile = File(...), config: str = Form(default=None)):
+async def extract(file: UploadFile = File(...)):
     """
     Extract content from uploaded file and convert to Markdown.
 
@@ -88,6 +89,9 @@ async def extract(file: UploadFile = File(...), config: str = Form(default=None)
         return await process_file(file)
     except HTTPException:
         raise
+    except RuntimeError as e:
+        logger.exception(f"Extraction failed for {repr(file.filename)}: {e}")
+        raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
         logger.exception(f"Extraction failed for {repr(file.filename)}: {e}")
         raise HTTPException(status_code=500, detail="conversion_failed")

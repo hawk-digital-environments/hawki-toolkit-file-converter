@@ -39,7 +39,7 @@ async def test_multiple_nodes_fit_in_one_chunk():
         max_chunk_length=10,
         has_pages=False,
     )
-    assert result == [Chunk("abcdef", None)]
+    assert result == [Chunk("ab\ncd\nef", None)]
 
 
 @pytest.mark.asyncio
@@ -88,7 +88,7 @@ async def test_starts_new_page_flushes_buffer():
     )
     assert result == [
         Chunk("ab", 1),
-        Chunk("cdef", 2),
+        Chunk("cd\nef", 2),
     ]
 
 
@@ -115,7 +115,7 @@ async def test_has_pages_false_ignores_page_numbers():
         max_chunk_length=100,
         has_pages=False,
     )
-    assert result == [Chunk("ab", None)]
+    assert result == [Chunk("a\nb", None)]
 
 
 @pytest.mark.asyncio

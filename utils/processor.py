@@ -122,9 +122,13 @@ async def _resolve_image_element(
     assets_dir: Path,
     image_counter: Generator[int, None, None],
 ) -> tuple[str, bool]:
+    # TODO: remove image counter hack and use "element" once kreuzberg bug is resolved 
+    # Hint (maybe version >=4.10, but needs kreuzberg api analysis) 
     image_index = next(image_counter)
-    image_data = result.images[image_index]["data"]
-
+    try:
+        image_data = result.images[image_index]["data"]
+    except:
+        raise RuntimeError("Images cannot be extracted for this document.")
     img = Image.open(io.BytesIO(image_data))
     with tempfile.TemporaryDirectory() as tmp_dir:
         tmp_file = Path(tmp_dir) / f"image_{image_index}.png"
@@ -175,45 +179,51 @@ async def make_element_nodes(
             page_number=element.get("metadata", {}).get("page_number"),
         )
 
-
+        
 async def accumulate_chunks(
     nodes: AsyncGenerator[ElementNode, None],
     max_chunk_length: int,
     has_pages: bool,
 ) -> AsyncGenerator[Chunk, None]:
-    """"""
+    """Create chunks from element nodes to not exceed chunk limits."""
     chunk_buffer: list[str] = []
     buffer_length = 0
-    current_page: int | None = None
+    prev_page: int|None = None
 
     async for node in nodes:
-        if has_pages and node.page_number is not None:
-            if current_page is not None and node.page_number != current_page:
-                if chunk_buffer:
-                    yield Chunk("".join(chunk_buffer), current_page)
-                    chunk_buffer = []
-                    buffer_length = 0
-            current_page = node.page_number
+        node_content_len = len(node.content)
+        node_content = node.content
+        node_page_number = node.page_number
+        prev_page = node.page_number if prev_page is None else prev_page
 
-        would_overflow = buffer_length + len(node.content) > max_chunk_length
+        would_overflow = buffer_length + node_content_len > max_chunk_length
 
         if node.starts_new_page or (would_overflow and chunk_buffer):
             if chunk_buffer:
-                yield Chunk("".join(chunk_buffer), current_page)
+                yield Chunk("\n".join(chunk_buffer), prev_page if has_pages else None)
+                prev_page=node_page_number
                 chunk_buffer = []
                 buffer_length = 0
-
-        if len(node.content) > max_chunk_length:
+        if has_pages and node_page_number != prev_page:
+            if chunk_buffer:
+                yield Chunk("\n".join(chunk_buffer), prev_page)
+                prev_page=node_page_number
+                chunk_buffer = []
+                buffer_length = 0
+            
+        if node_content_len > max_chunk_length:
             # TODO: add "smarter" chunking. E.g. not to write two words on a new page mid sentence -?
-            for sub in chunked_content_iter(node.content, max_chunk_length):
-                yield Chunk(sub, current_page)
+            for sub in chunked_content_iter(node_content, max_chunk_length):
+                yield Chunk(sub, node_page_number)
+            prev_page=node_page_number
             continue
-
-        chunk_buffer.append(node.content)
-        buffer_length += len(node.content)
+        elif node_content_len:
+            chunk_buffer.append(node_content)
+            buffer_length += node_content_len
 
     if chunk_buffer:
-        yield Chunk("".join(chunk_buffer), current_page)
+        yield Chunk("\n".join(chunk_buffer), node_page_number if has_pages else None)
+        prev_page=node_page_number
 
 
 def chunked_content_iter(s: str, max_length: int = 100) -> Generator[str, None, None]:
@@ -239,7 +249,7 @@ def chunked_content_iter(s: str, max_length: int = 100) -> Generator[str, None, 
         for part in re.split(
             # split on:
             # - ! or ?
-            # - . when it's NOT between digits (so 12.345 stays intact)
+            # - . when it's NOT between digits (e.g 12.345 stays intact)
             r"(?<=[!?])|(?<=\.)(?<!\d\.)|(?<=\.)(?!\d)",
             s,
         )
@@ -247,7 +257,8 @@ def chunked_content_iter(s: str, max_length: int = 100) -> Generator[str, None, 
     ]
 
     # Decimal matcher (kept for oversized-token protection later)
-    decimal_re = re.compile(r"^\d+\.\d+$")
+    number_re = re.compile(r"^(\d+|\d{1,3}(,\d{3})+)(\.\d+)?$")
+    sentence_stop_chars = ".!?"
 
     current = ""
 
@@ -281,16 +292,22 @@ def chunked_content_iter(s: str, max_length: int = 100) -> Generator[str, None, 
             if word_chunk:
                 yield word_chunk
 
-            # Do NOT split decimal numbers like 12.345
-            if decimal_re.fullmatch(word):
+            if number_re.fullmatch(word) or word[-1:] in sentence_stop_chars:
                 word_chunk = word
                 continue
 
-            # Hard split only for non-decimal oversized words
             if len(word) > max_length:
-                for i in range(0, len(word), max_length):
-                    yield word[i : i + max_length]
-                word_chunk = ""
+                trailing_num = re.search(r"\d+$", word)
+                if trailing_num and trailing_num.start() > 0:
+                    prefix = word[: trailing_num.start()]
+                    suffix = word[trailing_num.start() :]
+                    for i in range(0, len(prefix), max_length):
+                        yield prefix[i : i + max_length]
+                    word_chunk = suffix
+                else:
+                    for i in range(0, len(word), max_length):
+                        yield word[i : i + max_length]
+                    word_chunk = ""
             else:
                 word_chunk = word
 
@@ -312,7 +329,7 @@ def write_chunk(
 
 
 async def extract_keywords(chunk_file: Path, languages: list[str]) -> list[str]:
-    chunk_keywords: list[str] = []
+    chunk_keywords: set[str] = set()
     for lang in languages:
         keyword_result = await extract_file(
             chunk_file,
@@ -320,17 +337,16 @@ async def extract_keywords(chunk_file: Path, languages: list[str]) -> list[str]:
                 keywords=KeywordConfig(
                     algorithm=KeywordAlgorithm.Yake,
                     language=lang,
-                    max_keywords=10,
+                    max_keywords=int(os.getenv("MAX_KEYWORDS_FOR_LANGUAGE", "10")),
                     ngram_range=(1, 4),
                 )
             ),
         )
         if keyword_result.extracted_keywords:
-            keywords = sorted(
-                [keyword.text for keyword in keyword_result.extracted_keywords]
-            )
-            chunk_keywords.extend(keywords)
-    return chunk_keywords
+            keywords = {keyword.text for keyword in keyword_result.extracted_keywords}
+            
+            chunk_keywords= chunk_keywords.union(keywords)
+    return sorted(list(chunk_keywords), key=str.casefold)
 
 
 async def finalize_chunk(
@@ -387,20 +403,24 @@ def _write_metadata(
         extraction_metadata["keywords"] = keywords
 
     metadata_path = zip_dir / "meta.json"
-    metadata_path.write_text(json.dumps(extraction_metadata, indent=2))
+    metadata_path.write_text(json.dumps(extraction_metadata, indent=2), encoding='utf-8')
 
 
-async def _annotate_last_async(aiterable: AsyncGenerator[Any, Any, Any]):
-    """Wraps a generator to check if it has more items in it."""
+async def _annotate_last_async(
+    aiterable: AsyncGenerator[Any, Any]
+):
+    _stop = object()
     it = aiter(aiterable)
-    prev = await anext(it, None)
-    if prev is None:
+    prev = await anext(it, _stop)
+
+    if prev is _stop:
         return
+
     async for item in it:
         yield prev, False
         prev = item
-    yield prev, True
 
+    yield prev, True
 
 async def process_file_contents(
     file_path: Path, zip_dir: Path, assets_dir: Path
@@ -420,7 +440,7 @@ async def process_file_contents(
     config = get_extraction_config_for_file_content()
     result = await extract_file(str(file_path), config=config)
 
-    languages = result.detected_languages or [os.getenv("DEFAULT_LANGUAGE", "de")]
+    languages = result.detected_languages or [os.getenv("OCR_FALLBACK_LANGUAGE", "de")]
     max_chunk_length = int(os.getenv("MAX_CHUNK_LENGTH", 3000))
     has_pages = result.pages is not None
 
@@ -548,6 +568,6 @@ async def process_image_content(
         ocr_string = ""
     if result.content:
         (assets_dir / Path(f"{tmp_imagefile_path.stem}_ocr.md")).write_text(
-            result.content
+            result.content, encoding='utf-8'
         )
     return saved_image_path, ocr_string

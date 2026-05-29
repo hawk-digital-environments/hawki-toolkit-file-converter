@@ -1,4 +1,4 @@
-FROM neunerlei/python-nginx:3.14 as base
+FROM neunerlei/python-nginx:3.14 AS base
 
 LABEL org.opencontainers.image.authors="HAWKI Team <ki@hawk.de>"
 LABEL org.opencontainers.image.description="The HAWKI file conversion service (dev)"
@@ -32,13 +32,13 @@ RUN --mount=type=cache,id=apt-cache,target=/var/cache/apt,sharing=locked \
     rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/*
 
 
-FROM base as development
+FROM base AS development
 
 ARG USERNAME=dev
 ARG USER_UID=1000
 ARG USER_GID=$USER_UID
 
-COPY --from=ghcr.io/astral-sh/uv:latest /uv /uvx /usr/local/bin/
+COPY --from=astral/uv:latest /uv /uvx /usr/local/bin/
 
 RUN pip3 install pipx && python3 -m pipx ensurepath
 
@@ -62,11 +62,12 @@ FROM development AS test
 USER root
 WORKDIR /workspace
 
-COPY . .
-COPY pyproject.toml uv.lock .
+COPY pyproject.toml readme.md uv.lock .
 RUN uv sync --all-groups
 
-CMD ["uv", "run", "pytest", "-vvv", "-x"]
+COPY . .
+
+CMD ["uv", "run", "--no-sync", "pytest", "-vvv", "-x"]
 
 
 FROM development as requirements
@@ -92,16 +93,6 @@ COPY utils/ utils/
 HEALTHCHECK --interval=30s --timeout=10s --start-period=40s --retries=3 \
     CMD curl -f http://localhost/health || exit 1
 
-
-FROM deployment as test
-
-COPY ./tests ./tests
-COPY pytest.ini .
-
-RUN --mount=type=cache,target=/root/.cache/pip \
-    pip install --no-cache-dir \
-    pytest \
-    httpx
 
 FROM deployment
 
