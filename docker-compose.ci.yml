@@ -7,3 +7,5 @@ services:
     entrypoint: []
     environment:
       - F_API_KEY=test-secret-key
+      - POSTGRES_ENABLED=false
+      - PREFECT_API_DATABASE_CONNECTION_URL=sqlite+aiosqlite:////tmp/prefect.db?timeout=60

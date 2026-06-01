@@ -81,6 +81,26 @@ RUN uv export --no-dev --no-hashes --no-emit-project -o requirements.txt > requi
 
 FROM base AS deployment 
 
+RUN --mount=type=cache,id=apt-cache,target=/var/cache/apt,sharing=locked \
+    --mount=type=cache,id=apt-lib,target=/var/lib/apt,sharing=locked \
+    apt-get update && \
+    apt-get install -y --no-install-recommends \
+        postgresql-17=17.* \
+        && \
+    apt-get clean && \
+    rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/*
+
+RUN cat > /etc/postgresql/17/main/pg_hba.conf << 'EOF'
+local   all   all   trust
+host    all   all   127.0.0.1/32   trust
+host    all   all   ::1/128        trust
+EOF
+
+RUN pg_ctlcluster 17 main start && \
+    su - postgres -c "createuser -s prefect" && \
+    su - postgres -c "createdb -O prefect prefect" && \
+    pg_ctlcluster 17 main stop
+
 COPY --from=requirements /build-requirements/requirements.txt /var/www/html/hawki-toolkit-file-converter-requirements.txt
 
 RUN --mount=type=cache,target=/root/.cache/pip \
@@ -96,28 +116,33 @@ HEALTHCHECK --interval=30s --timeout=10s --start-period=40s --retries=3 \
 
 FROM deployment
 
-RUN mkdir -p /var/www/.prefect /task-storage /container/custom/supervisor/conf.d && chown www-data:www-data /var/www/.prefect /task-storage
+RUN mkdir -p /var/www/.prefect /task-storage /container/custom/supervisor/conf.d /container/custom/entrypoint && \
+    chown www-data:www-data /var/www/.prefect /task-storage && \
+    mkdir -p /var/run/postgresql && chown postgres:postgres /var/run/postgresql
 
 COPY docker/custom/supervisor/conf.d/*.conf /container/templates/supervisor/conf.d/
 COPY docker/custom/nginx/*.conf /container/custom/nginx/
+COPY docker/custom/entrypoint/*.sh /container/custom/entrypoint/
+COPY docker/scripts/*.sh /container/bin/
+RUN chmod +x /container/bin/*.sh
 
 ENV PYTHON_APP_MODULE="main:app"
 ENV GUNICORN_WORKER_CLASS="uvicorn.workers.UvicornWorker"
-ENV GUNICORN_WORKER_CLASS="uvicorn.workers.UvicornWorker"
 
+ENV POSTGRES_ENABLED=true
 ENV PREFECT_HOME="/var/www/.prefect"
 ENV PREFECT_SERVER_API_HOST="0.0.0.0"
 ENV PREFECT_API_URL="http://127.0.0.1:4200/api"
-ENV PREFECT_API_DATABASE_CONNECTION_URL="sqlite+aiosqlite:////var/www/.prefect/prefect.db?timeout=60"
+ENV PREFECT_API_DATABASE_CONNECTION_URL="postgresql+asyncpg://prefect@127.0.0.1:5432/prefect"
 ENV PREFECT_LOCAL_STORAGE_PATH="/task-storage"
+ENV PREFECT_RESULTS_PERSIST_BY_DEFAULT=true
 ENV PREFECT_LOGGING_LOG_PRINTS="true"
 ENV PREFECT_LOGGING_TO_API_WHEN_MISSING_FLOW="ignore"
 ENV PREFECT_UI_SERVE_BASE="/prefect/"
 ENV PREFECT_UI_API_URL="/prefect/api"
 
-ENV WORKER_COUNT="1"
+ENV WORKER_COUNT="3"
 ENV HOME=/tmp
-# See: https://github.com/kreuzberg-dev/kreuzberg/blob/2e9fdd4fe342122225c0a7ff29e1da11bd84499e/crates/kreuzberg-cli/README.md?plain=1#L827
 ENV RUST_LOG=info
 
 
