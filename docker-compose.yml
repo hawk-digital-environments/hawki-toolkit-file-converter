@@ -10,5 +10,7 @@ services:
     ports:
       - "8001:80"
     environment:
-      - F_API_KEY= ${F_API_KEY:-} # Empty by default
+      - F_API_KEY=${F_API_KEY:-}
+      - POSTGRES_ENABLED=${POSTGRES_ENABLED:-true}
+      - PREFECT_API_DATABASE_CONNECTION_URL=${PREFECT_API_DATABASE_CONNECTION_URL:-postgresql+asyncpg://prefect@127.0.0.1:5432/prefect}
     restart: unless-stopped

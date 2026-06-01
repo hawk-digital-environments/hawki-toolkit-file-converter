@@ -3,7 +3,7 @@
 set -e
 
 echo  "Building Docker image..."
-docker build -t pymupdf-extract .
+docker build -t digitalenvironments/hawki-toolkit-file-converter:local .
 
 if [ -f .env ]; then
   # shellcheck disable=SC1091
@@ -18,4 +18,4 @@ if [ -z "${F_API_KEY:-}" ]; then
 fi
 
 echo "Running FastAPI container on http://localhost:8001 ..."
-docker run --rm -p 8001:80 -e "F_API_KEY=${F_API_KEY}" pymupdf-extract
+docker run --rm -p 8001:80 -e "F_API_KEY=${F_API_KEY}" digitalenvironments/hawki-toolkit-file-converter:local

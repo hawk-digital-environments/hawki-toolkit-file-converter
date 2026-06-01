@@ -1,169 +1,183 @@
-#!/usr/bin/env python3
 """
-File-to-Markdown converter service.
-
-Supports:
-- PDF files (using pyMuPDF)
-- Word documents (.doc, .docx using pypandoc)
+File-to-Markdown converter service powered by kreuzberg.
 """
 
-import importlib.util
+import asyncio
+import os
+import re
 import shutil
+import uuid
+
+import kreuzberg
+from fastapi import (
+    FastAPI,
+    File,
+    UploadFile,
+    HTTPException,
+    Depends,
+    Header,
+    status,
+)
 from pathlib import Path
-import re, os
-
-from fastapi import FastAPI, File, UploadFile, HTTPException, Depends, Header, status
 from pydantic import BaseModel
+from prefect.deployments import run_deployment
+from starlette.background import BackgroundTask
+from starlette.responses import StreamingResponse
 
-from utils.pdf_processor import process_pdf
-from utils.word_processor import process_word, is_word_file
-from utils.logging_helper import logging_help  
+from utils.logging_helper import logging_help
+from utils.helper import get_supported_formats, get_file_type, get_image_file_formats
 
-app = FastAPI(title="File → Markdown Converter")
-# Logger initialization
+app = FastAPI(title="File to Markdown Converter")
 logger = logging_help()
-################# API KEY VALIDATION ####################
+
 REQUIRED_KEY = os.getenv("F_API_KEY", "").strip()
 if not REQUIRED_KEY:
     raise RuntimeError("F_API_KEY not set! Server cannot run without it.")
 
+DEPLOYMENT_NAME = "run-process-file/process-file"
+SHARED_TMP = Path("/tmp/hawki-file-converter")
+
+
 async def require_api_key(authorization: str | None = Header(default=None)):
+    """Check that the required api key matches service key `REQUIRED_KEY`"""
     if not authorization or not authorization.startswith("Bearer "):
-        raise HTTPException(status_code=401, detail="Missing or invalid Authorization header")
+        raise HTTPException(
+            status_code=401, detail="Missing or invalid Authorization header"
+        )
 
     token = authorization.removeprefix("Bearer ").strip()
-    # token logging removed to avoid leaking secrets
     if token != REQUIRED_KEY:
         raise HTTPException(status_code=401, detail="Invalid API key")
 
-#####################
 
-# any special codes can be detected here outside the normal scope > good for finding Deutsch words that cause issues
 _SPECIAL_NAME_RE = re.compile(r"[^A-Za-z0-9._-]|\s")
 
 
 class HealthCheck(BaseModel):
-    """Simple health response model."""
-
     status: str = "OK"
 
 
 def _run_dependency_checks() -> None:
-    """
-    Ensure critical runtime dependencies are present.
-
-    Raises:
-        RuntimeError: If required binaries or modules are missing.
-    """
-    missing_modules = [
-        module for module in ("fitz", "pypandoc") if importlib.util.find_spec(module) is None
-    ]
-    if missing_modules:
-        raise RuntimeError(f"Missing Python modules: {', '.join(missing_modules)}")
-
-    missing_binaries = [
-        binary for binary in ("tesseract", "pandoc") if shutil.which(binary) is None
-    ]
-    if missing_binaries:
-        raise RuntimeError(f"Missing binaries: {', '.join(missing_binaries)}")
+    """Check that expected ocr backend is installed"""
+    if not "paddle-ocr" in kreuzberg.list_ocr_backends():
+        raise RuntimeError("Missing binary: tesseract")
 
 
-def get_file_type(filename: str) -> str:
-    """Determine file type from filename."""
-    if not filename:
-        return "unknown"
-    
-    ext = Path(filename).suffix.lower()
-    
-    if ext == '.pdf':
-        return "pdf"
-    elif ext in ['.doc', '.docx']:
-        return "word"
-    else:
-        return "unknown"
+def _cleanup(fh, run_dir: str) -> None:
+    fh.close()
+    shutil.rmtree(run_dir, ignore_errors=True)
+
+
+async def _run_processing(
+    file_path: str, filename: str, result_dir: str
+) -> dict:
+    flow_run = await run_deployment(
+        name=DEPLOYMENT_NAME,
+        parameters={
+            "file_path": file_path,
+            "filename": filename,
+            "result_dir": result_dir,
+        },
+    )
+    result = flow_run.state.result()
+    if asyncio.iscoroutine(result):
+        result = await result
+    return result
 
 
 @app.post("/extract", dependencies=[Depends(require_api_key)])
-async def extract(
-    file: UploadFile = File(...),
-    chunkable: bool = True
-):
+async def extract(file: UploadFile = File(...)):
     """
     Extract content from uploaded file and convert to Markdown.
-    
-    Supports:
-    - PDF files (with optional chunking)
-    - Word documents (.doc, .docx)
-    
+
     Returns a ZIP file containing:
     - content_markdown.md: The converted markdown
-    - images_*/: Directory with extracted images
+    - images/: Directory with extracted images (if any)
     """
     if not file.filename:
         raise HTTPException(status_code=400, detail="Filename is required")
 
-    # Log the incoming filename and content type
-    logger.info(f"Incoming upload: filename={repr(file.filename)}, content_type={repr(getattr(file, 'content_type', None))}")
+    logger.info(
+        f"Incoming upload: filename={repr(file.filename)}, "
+        f"content_type={repr(getattr(file, 'content_type', None))}"
+    )
 
-    # this line warns us if filename contains spaces or special characters
     if _SPECIAL_NAME_RE.search(file.filename or ""):
-        logger.warning(f"Filename contains spaces or special characters: {repr(file.filename)}")
+        logger.warning(
+            f"Filename contains spaces or special characters: {repr(file.filename)}"
+        )
 
-    file_type = get_file_type(file.filename)
-    logger.info(f"Detected file type: {file_type} (chunkable={chunkable})")
+    if not get_file_type(file.filename):
+        unsuported_ext = Path(file.filename).suffix.lower()
+        logger.error(f"Unsupported file type: {unsuported_ext}")
+        raise HTTPException(
+            status_code=400,
+            detail=f"Unsupported file type `{unsuported_ext}`. Supported types: {', '.join(sorted(get_supported_formats()))}"
+        )
+
+    run_id = str(uuid.uuid4())
+    run_dir = SHARED_TMP / run_id
 
     try:
-        if file_type == "pdf":
-            logger.info("Selected processor: PDF")
-            # process_pdf  returns a ZIP with markdown/images
-            return await process_pdf(file, chunkable)
-        elif file_type == "word":
-            logger.info("Selected processor: Word")
-            return await process_word(file)
-        else:
-            supported_types = ['.pdf', '.doc', '.docx']
-            logger.error(f"Unsupported file type: {Path(file.filename).suffix.lower()}")
-            raise HTTPException(
-                status_code=400, 
-                detail=f"Unsupported file type. Supported types: {', '.join(supported_types)}"
-            )
+        upload_path = run_dir / "upload" / (file.filename or "document")
+        upload_path.parent.mkdir(parents=True)
+        upload_path.write_bytes(await file.read())
+
+        result_dir = run_dir / "result"
+        result = await _run_processing(
+            str(upload_path),
+            file.filename or "document",
+            str(result_dir),
+        )
+
+        result_path = Path(result["result_path"])
+        fh = open(result_path, "rb")
+
+        return StreamingResponse(
+            content=fh,
+            media_type="application/zip",
+            headers=result["headers"],
+            background=BackgroundTask(_cleanup, fh, str(run_dir)),
+        )
     except HTTPException:
+        shutil.rmtree(run_dir, ignore_errors=True)
         raise
-    except Exception as e:
-        # other unexpected error is logged here as 500
+    except RuntimeError as e:
         logger.exception(f"Extraction failed for {repr(file.filename)}: {e}")
+        shutil.rmtree(run_dir, ignore_errors=True)
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        logger.exception(f"Extraction failed for {repr(file.filename)}: {e}")
+        shutil.rmtree(run_dir, ignore_errors=True)
         raise HTTPException(status_code=500, detail="conversion_failed")
 
 
 @app.get("/", dependencies=[Depends(require_api_key)])
 async def root():
-    """Health check and service info."""
     return {
         "service": "File to Markdown Converter",
-        "auth": "X-API-KEY required",
-        "supported_formats": [".pdf", ".doc", ".docx"],
+        "auth": "Bearer token required",
+        "supported_formats": get_supported_formats(),
+        "image_formats": get_image_file_formats(),
         "endpoints": {
             "/extract": "POST - Upload file for conversion",
-            "/": "GET - This info page"
-        }
+            "/": "GET - This info page",
+        },
     }
 
 
 @app.get(
     "/health",
     tags=["healthcheck"],
-    summary="QUICK health check",
+    summary="Health check",
     response_description="Return HTTP Status Code 200 (OK)",
     status_code=status.HTTP_200_OK,
     response_model=HealthCheck,
 )
 async def healthcheck() -> HealthCheck:
-    """
-    Returns 200 when core dependencies are available; otherwise 500.
-    """
     try:
         _run_dependency_checks()
-    except Exception as exc:  # pragma: no cover - defensive logging
+    except Exception as exc:
         logger.exception("Health check failed: %s", exc)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
