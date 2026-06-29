@@ -91,6 +91,9 @@ ARG TEMPORAL_SERVER_VERSION=1.29.7
 ARG TEMPORAL_CLI_VERSION=1.7.2
 ARG TEMPORAL_UI_VERSION=2.51.0
 
+RUN case "${TARGETARCH}" in amd64|arm64) ;; *) echo "Unsupported TARGETARCH: ${TARGETARCH}" >&2; exit 1 ;; esac
+ENV TEMPORAL_RELEASE_ARCH=${TARGETARCH}
+
 RUN --mount=type=cache,id=apt-cache,target=/var/cache/apt,sharing=locked \
     --mount=type=cache,id=apt-lib,target=/var/lib/apt,sharing=locked \
     apt-get update && \
@@ -109,35 +112,20 @@ host    all   all   ::1/128        trust
 EOF
 
 # Install Temporal server, SQL tool, CLI, and UI binaries from upstream releases.
-RUN case "${TARGETARCH}" in \
-        amd64) TEMPORAL_RELEASE_ARCH="amd64" ;; \
-        arm64) TEMPORAL_RELEASE_ARCH="arm64" ;; \
-        *) echo "Unsupported TARGETARCH: ${TARGETARCH}" >&2; exit 1 ;; \
-    esac && \
-    curl -fsSL "https://github.com/temporalio/temporal/releases/download/v${TEMPORAL_SERVER_VERSION}/temporal_${TEMPORAL_SERVER_VERSION}_linux_${TEMPORAL_RELEASE_ARCH}.tar.gz" \
+RUN curl -fsSL "https://github.com/temporalio/temporal/releases/download/v${TEMPORAL_SERVER_VERSION}/temporal_${TEMPORAL_SERVER_VERSION}_linux_${TEMPORAL_RELEASE_ARCH}.tar.gz" \
         -o /tmp/temporal-server.tar.gz && \
     tar -xzf /tmp/temporal-server.tar.gz -C /usr/local/bin \
         temporal-server temporal-sql-tool && \
     rm /tmp/temporal-server.tar.gz && \
     chmod +x /usr/local/bin/temporal-server /usr/local/bin/temporal-sql-tool
 
-RUN case "${TARGETARCH}" in \
-        amd64) TEMPORAL_RELEASE_ARCH="amd64" ;; \
-        arm64) TEMPORAL_RELEASE_ARCH="arm64" ;; \
-        *) echo "Unsupported TARGETARCH: ${TARGETARCH}" >&2; exit 1 ;; \
-    esac && \
-    curl -fsSL "https://github.com/temporalio/cli/releases/download/v${TEMPORAL_CLI_VERSION}/temporal_cli_${TEMPORAL_CLI_VERSION}_linux_${TEMPORAL_RELEASE_ARCH}.tar.gz" \
+RUN curl -fsSL "https://github.com/temporalio/cli/releases/download/v${TEMPORAL_CLI_VERSION}/temporal_cli_${TEMPORAL_CLI_VERSION}_linux_${TEMPORAL_RELEASE_ARCH}.tar.gz" \
         -o /tmp/temporal-cli.tar.gz && \
     tar -xzf /tmp/temporal-cli.tar.gz -C /usr/local/bin temporal && \
     rm /tmp/temporal-cli.tar.gz && \
     chmod +x /usr/local/bin/temporal
 
-RUN case "${TARGETARCH}" in \
-        amd64) TEMPORAL_RELEASE_ARCH="amd64" ;; \
-        arm64) TEMPORAL_RELEASE_ARCH="arm64" ;; \
-        *) echo "Unsupported TARGETARCH: ${TARGETARCH}" >&2; exit 1 ;; \
-    esac && \
-    curl -fsSL "https://github.com/temporalio/ui-server/releases/download/v${TEMPORAL_UI_VERSION}/ui-server_${TEMPORAL_UI_VERSION}_linux_${TEMPORAL_RELEASE_ARCH}.tar.gz" \
+RUN curl -fsSL "https://github.com/temporalio/ui-server/releases/download/v${TEMPORAL_UI_VERSION}/ui-server_${TEMPORAL_UI_VERSION}_linux_${TEMPORAL_RELEASE_ARCH}.tar.gz" \
         -o /tmp/ui-server.tar.gz && \
     tar -xzf /tmp/ui-server.tar.gz -C /tmp ui-server && \
     mv /tmp/ui-server /usr/local/bin/temporal-ui-server && \
