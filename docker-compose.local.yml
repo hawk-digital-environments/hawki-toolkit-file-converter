@@ -1,5 +1,13 @@
 services:
   file-converter:
+    environment:
+      # Master OCR switch. Default off: images are extracted and saved as webp
+      # assets without OCR captions. Set to "true" to run paddleocr on images
+      # (and as a fallback for textless PDF pages).
+      - OCR_ENABLED=${OCR_ENABLED:-true}
+      # Max images processed concurrently (bounded asyncio.Semaphore). Applies
+      # to both OCR and asset-only webp saves.
+      - OCR_CONCURRENCY=${OCR_CONCURRENCY:-4}
     networks:
       - hawki-network
       - default
