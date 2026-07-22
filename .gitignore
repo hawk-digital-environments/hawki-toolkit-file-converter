@@ -1,5 +1,17 @@
+__pycache__/**
 utils/__pycache__
+__pycache__
+**/__pycache__
 .env
 node_modules
 .idea
 docker-compose.override.yml
+pandoc**
+**.egg-info
+conversion.log
+**/*.pyc
+hawki_toolkit_file_converter.egg-info
+.ruff_cache
+conversion.log
+debug
+VERSION.md

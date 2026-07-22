@@ -12,6 +12,10 @@
 
 [//]: # (- List of bugs that have been fixed in this version.)
 
+### Internals
+
+[//]: # (- Changes that are mostly relevant to maintainers and contributors, such as refactors, dependency updates, CI changes, etc.)
+
 ### Deprecation
 
 [//]: # (- List of features or functionalities that have been deprecated in this version.)

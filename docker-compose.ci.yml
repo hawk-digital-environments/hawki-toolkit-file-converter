@@ -1,0 +1,10 @@
+services:
+  file-converter-test:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: test
+    entrypoint: []
+    environment:
+      - F_API_KEY=test-secret-key
+      - POSTGRES_ENABLED=false
