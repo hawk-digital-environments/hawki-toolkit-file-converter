@@ -17,7 +17,7 @@ jobs:
       version: ${{ steps.version.outputs.version }}
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
         with:
           fetch-depth: 0
 
@@ -38,7 +38,7 @@ jobs:
       id-token: write
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
 
       - name: Set up QEMU
         uses: docker/setup-qemu-action@v4
@@ -63,6 +63,8 @@ jobs:
           tags: |
             digitalenvironments/hawki-toolkit-file-converter:latest
             digitalenvironments/hawki-toolkit-file-converter:${{ needs.detect-version.outputs.version }}
+          build-args: |
+            APP_VERSION=${{ needs.detect-version.outputs.version }}
           cache-from: type=gha,scope=${{ needs.detect-version.outputs.version }}
           cache-to: type=gha,mode=max,scope=${{ needs.detect-version.outputs.version }}
 
@@ -84,7 +86,7 @@ jobs:
       release-body: ${{ steps.release.outputs.release-body }}
       release-url: ${{ steps.release.outputs.release-url }}
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
 
       - id: release
         uses: hawk-digital-environments/hawk-pipeline-actions/create-github-release@v1
@@ -96,9 +98,9 @@ jobs:
     name: Notify Discord
     runs-on: ubuntu-latest
     needs: [ build-and-publish, github-release, detect-version ]
-    if: success()
+    if: ${{ success() && false }}
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
 
       - uses: hawk-digital-environments/hawk-pipeline-actions/send-discord-notification@v1
         with:
