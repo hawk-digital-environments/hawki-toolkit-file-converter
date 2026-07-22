@@ -2,8 +2,8 @@
 
 ## Overview
 
-- This version needs HAWKI version >= 2.5
-- For updating HAWKI see [HAWKI release notes](https://github.com/hawk-digital-environments/HAWKI/releases)
+[//]: # (Briefly describe what makes this upgrade different from a routine update)
+[//]: # (and why manual intervention is required.)
 
 ## Steps
 
