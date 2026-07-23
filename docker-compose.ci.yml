@@ -8,3 +8,6 @@ services:
     environment:
       - F_API_KEY=test-secret-key
       - POSTGRES_ENABLED=false
+      # HuggingFace offline mode: fail loudly if a test triggers a model fetch
+      # instead of silently downloading over the network.
+      - HF_HUB_OFFLINE=1

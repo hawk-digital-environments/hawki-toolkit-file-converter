@@ -10,7 +10,7 @@
 
 ### Bugfix
 
-[//]: # (- List of bugs that have been fixed in this version.)
+Reduce docker images size by refactoring dockerfile and reducing downloaded ai models (e.g. paddleocr).
 
 ### Internals
 
