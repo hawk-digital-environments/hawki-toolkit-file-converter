@@ -90,7 +90,8 @@ FROM temporalio/auto-setup:1.29.7 AS temporal-auto-setup
 # Build-time only: pre-fetch kreuzberg's PaddleOCR + layout ONNX models from
 # HuggingFace into a standard HF cache layout.
 FROM base AS model-cache
-RUN pip install --no-cache-dir huggingface_hub~=1.24.0
+RUN --mount=type=cache,id=pip-cache,target=/root/.cache/pip,sharing=locked \
+    pip install huggingface_hub~=1.24.0
 ENV HF_HOME=/hf-home
 COPY docker/scripts/fetch_models.py /fetch_models.py
 RUN python /fetch_models.py
@@ -102,39 +103,32 @@ ARG TEMPORAL_SERVER_VERSION=1.29.7
 ARG TEMPORAL_CLI_VERSION=1.7.2
 ARG TEMPORAL_UI_VERSION=2.51.0
 
+# Single layer: apt deps + pg_hba config + temporal server/cli/ui binaries.
+# Combining avoids multiple separate large diffs and keeps tarball extraction
+# + chmod in one filesystem snapshot.
 RUN --mount=type=cache,id=apt-cache,target=/var/cache/apt,sharing=locked \
     --mount=type=cache,id=apt-lib,target=/var/lib/apt,sharing=locked \
     apt-get update && \
     apt-get install -y --no-install-recommends \
         postgresql-17=17.* \
         curl \
-        ca-certificates \
-        && \
+        ca-certificates && \
     apt-get clean && \
-    rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/*
-
-RUN printf 'local\tall\tall\ttrust\nhost\tall\tall\t127.0.0.1/32\ttrust\nhost\tall\tall\t::1/128\ttrust\n' > /etc/postgresql/17/main/pg_hba.conf
-
-# Install Temporal server, SQL tool, and CLI binaries from upstream releases
-RUN curl -fsSL "https://github.com/temporalio/temporal/releases/download/v${TEMPORAL_SERVER_VERSION}/temporal_${TEMPORAL_SERVER_VERSION}_linux_amd64.tar.gz" \
+    rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/* && \
+    printf 'local\tall\tall\ttrust\nhost\tall\tall\t127.0.0.1/32\ttrust\nhost\tall\tall\t::1/128\ttrust\n' > /etc/postgresql/17/main/pg_hba.conf && \
+    curl -fsSL "https://github.com/temporalio/temporal/releases/download/v${TEMPORAL_SERVER_VERSION}/temporal_${TEMPORAL_SERVER_VERSION}_linux_amd64.tar.gz" \
         -o /tmp/temporal-server.tar.gz && \
-    tar -xzf /tmp/temporal-server.tar.gz -C /usr/local/bin \
-        temporal-server temporal-sql-tool && \
-    rm /tmp/temporal-server.tar.gz && \
-    chmod +x /usr/local/bin/temporal-server /usr/local/bin/temporal-sql-tool
-
-RUN curl -fsSL "https://github.com/temporalio/cli/releases/download/v${TEMPORAL_CLI_VERSION}/temporal_cli_${TEMPORAL_CLI_VERSION}_linux_amd64.tar.gz" \
+    tar -xzf /tmp/temporal-server.tar.gz -C /usr/local/bin temporal-server temporal-sql-tool && \
+    curl -fsSL "https://github.com/temporalio/cli/releases/download/v${TEMPORAL_CLI_VERSION}/temporal_cli_${TEMPORAL_CLI_VERSION}_linux_amd64.tar.gz" \
         -o /tmp/temporal-cli.tar.gz && \
     tar -xzf /tmp/temporal-cli.tar.gz -C /usr/local/bin temporal && \
-    rm /tmp/temporal-cli.tar.gz && \
-    chmod +x /usr/local/bin/temporal
-
-RUN curl -fsSL "https://github.com/temporalio/ui-server/releases/download/v${TEMPORAL_UI_VERSION}/ui-server_${TEMPORAL_UI_VERSION}_linux_amd64.tar.gz" \
+    curl -fsSL "https://github.com/temporalio/ui-server/releases/download/v${TEMPORAL_UI_VERSION}/ui-server_${TEMPORAL_UI_VERSION}_linux_amd64.tar.gz" \
         -o /tmp/ui-server.tar.gz && \
     tar -xzf /tmp/ui-server.tar.gz -C /tmp ui-server && \
     mv /tmp/ui-server /usr/local/bin/temporal-ui-server && \
-    rm -rf /tmp/ui-server.tar.gz && \
-    chmod +x /usr/local/bin/temporal-ui-server
+    rm -f /tmp/temporal-server.tar.gz /tmp/temporal-cli.tar.gz /tmp/ui-server.tar.gz && \
+    chmod +x /usr/local/bin/temporal-server /usr/local/bin/temporal-sql-tool \
+        /usr/local/bin/temporal /usr/local/bin/temporal-ui-server
 
 # Schema files are reused from the auto-setup image (the source repo does not ship them in the binary release)
 COPY --from=temporal-auto-setup /etc/temporal/schema /etc/temporal/schema
@@ -145,7 +139,8 @@ COPY docker/custom/temporal/config/docker-ui.yaml /etc/temporal/config/docker-ui
 COPY --from=requirements /build-requirements/requirements.txt /var/www/html/hawki-toolkit-file-converter-requirements.txt
 
 RUN --mount=type=cache,target=/root/.cache/pip \
-    pip install --no-cache-dir -r requirements.txt -r /var/www/html/hawki-toolkit-file-converter-requirements.txt && rm /var/www/html/hawki-toolkit-file-converter-requirements.txt
+    pip install --no-cache-dir -r /var/www/html/hawki-toolkit-file-converter-requirements.txt \
+    && rm /var/www/html/hawki-toolkit-file-converter-requirements.txt
 
 ARG APP_VERSION=dev
 RUN echo "$APP_VERSION" > VERSION.md
@@ -160,19 +155,8 @@ HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=3 \
 
 FROM deployment
 
-RUN mkdir -p /task-storage /etc/temporal/config /container/custom/supervisor/conf.d /container/custom/entrypoint && \
-    chown www-data:www-data /task-storage && \
-    mkdir -p /var/run/postgresql && chown postgres:postgres /var/run/postgresql
-
-COPY docker/custom/supervisor/conf.d/*.conf /container/templates/supervisor/conf.d/
-COPY docker/custom/nginx/*.conf /container/custom/nginx/
-COPY docker/custom/entrypoint/*.sh /container/custom/entrypoint/
-COPY docker/scripts/*.sh /container/bin/
-RUN chmod +x /container/bin/*.sh
-
 ENV PYTHON_APP_MODULE="main:app"
 ENV GUNICORN_WORKER_CLASS="uvicorn.workers.UvicornWorker"
-
 ENV POSTGRES_ENABLED=true
 ENV TEMPORAL_HOME="/etc/temporal"
 ENV TEMPORAL_HOST="127.0.0.1:7233"
@@ -192,20 +176,27 @@ ENV CALLBACK_TIMEOUT_SECONDS="30"
 ENV ACTIVITY_START_TO_CLOSE_TIMEOUT_MINUTES="60"
 ENV TEMPORAL_MAX_CONCURRENT=5
 ENV TEMPORAL_MAX_CACHED_WORKFLOWS=0
-
 ENV HOME=/tmp
 ENV RUST_LOG=info
-
 ENV OCR_LANGUAGES=en
-
 # Pre-fetched model cache (built in the model-cache stage). HF_HOME and
 # HUGGINGFACE_HUB_CACHE point kreuzberg's hf-hub downloader here so cache hits
 # need no network.
 ENV HF_HOME=/var/cache/huggingface
 ENV HUGGINGFACE_HUB_CACHE=/var/cache/huggingface/hub
-RUN mkdir -p /var/cache/huggingface/hub \
-    && chown -R www-data:www-data /var/cache/huggingface
-COPY --from=model-cache /hf-home/hub /var/cache/huggingface/hub
-RUN chown -R www-data:www-data /var/cache/huggingface
 
+COPY docker/custom/supervisor/conf.d/*.conf /container/templates/supervisor/conf.d/
+COPY docker/custom/nginx/*.conf /container/custom/nginx/
+COPY docker/custom/entrypoint/*.sh /container/custom/entrypoint/
+COPY docker/scripts/*.sh /container/bin/
 
+RUN mkdir -p /task-storage /etc/temporal/config /container/custom/supervisor/conf.d \
+        /container/custom/entrypoint /var/run/postgresql /var/cache/huggingface && \
+    chown www-data:www-data /task-storage /var/cache/huggingface && \
+    chown postgres:postgres /var/run/postgresql && \
+    chmod +x /container/bin/*.sh
+
+# Model cache is COPY'd LAST and with --chown so ownership is baked in without
+# a separate multi-GB chown diff layer. This is the single biggest size win:
+# the previous trailing `chown -R` duplicated the full 2 GB model set.
+COPY --chown=www-data:www-data --from=model-cache /hf-home/hub /var/cache/huggingface/hub
