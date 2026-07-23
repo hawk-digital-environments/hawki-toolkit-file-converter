@@ -1,3 +1,33 @@
 __pycache__
 **/__pycache__/**
 .venv
+
+# VCS and metadata
+.git
+.github
+.devcontainer
+.vscode
+
+# Caches
+.pytest_cache
+.ruff_cache
+.mypy_cache
+
+# Source not needed in any stage's COPY (tests/ is needed by the test stage's
+# `COPY . .`; no production stage does a broad COPY, so it is NOT excluded here)
+_changelog
+
+# Docs (keep readme.md, referenced by pyproject.toml)
+*.md
+!readme.md
+
+# Build/CI files
+Dockerfile*
+docker-compose*.yml
+Makefile
+
+# Local environment
+.env
+.env.*
+!.env.example
+
