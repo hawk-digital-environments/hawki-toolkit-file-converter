@@ -1,4 +1,3 @@
-import asyncio
 import io
 import json
 import os
@@ -6,60 +5,40 @@ import re
 import shutil
 import tempfile
 import zipfile
-from collections.abc import AsyncGenerator, Generator
-from dataclasses import dataclass
 from pathlib import Path
 from tempfile import TemporaryDirectory
-from typing import Any
 
+import ftfy
 import yaml
 from fastapi import UploadFile
 from fastapi.responses import StreamingResponse
-from kreuzberg import (
+from PIL import Image
+from xberg import (
+    Chunk,
+    ChunkingConfig,
+    ExtractedDocument,
+    ExtractInput,
     ExtractionConfig,
     ExtractionResult,
     HierarchyConfig,
     ImageExtractionConfig,
+    Keyword,
     KeywordAlgorithm,
     KeywordConfig,
     LanguageDetectionConfig,
     OcrConfig,
+    OcrElementConfig,
     PageConfig,
     PdfConfig,
-    extract_file,
+    ResultFormat,
+    extract,
 )
-from PIL import Image
 
-from utils.helper import is_image_filename, make_content_disposition
-
-
-@dataclass
-class ElementNode:
-    content: str
-    starts_new_page: bool
-    page_number: int | None
-
-
-@dataclass
-class Chunk:
-    """The contents of a chunk."""
-
-    content: str
-    page_number: int | None
-
-
-# https://docs.kreuzberg.dev/migration/from-unstructured/?h=unstructured#element-type-mapping
-KREUZBERG_TEXT_ELEMENT_TYPES = frozenset(
-    {
-        "header",
-        "narrative_text",
-        "list_item",
-        "table",
-        "footer",
-        "code_block",
-        "block_quote",
-    }
+from utils.helper import (
+    is_image_filename,
+    make_content_disposition,
 )
+from utils.language_helper import KeywordLanguageCodes, OcrLanguageCodes
 
 
 def is_ocr_enabled() -> bool:
@@ -67,36 +46,120 @@ def is_ocr_enabled() -> bool:
     return os.getenv("OCR_ENABLED", "true").strip().lower() in ("true", "1", "yes")
 
 
+def is_save_document_image_refs_enabled() -> bool:
+    """Whether document-extracted figures are saved and referenced in chunks.
+
+    When true, each extracted figure is written as
+    ``assets/image_{N}.webp`` and a ``> [Image: ...]`` reference is injected
+    into the chunk markdown. When false, no webps are written and no references
+    are injected -- but OCR text (from ``force_ocr``) is still present in the
+    chunks. Defaults to on.
+    """
+    return os.getenv("SAVE_DOCUMENT_IMAGE_REFS", "false").strip().lower() in ("true", "1", "yes")
+
+
 def get_extraction_config_for_file_content() -> ExtractionConfig:
     """The extraction config for a file.
 
-    For kreuzberg configuration interface and defaults see:
-        https://github.com/kreuzberg-dev/kreuzberg/blob/v4.9.5/packages/python/kreuzberg/_internal_bindings.pyi
+    OCR and chunking are delegated to xberg in a single ``extract`` pass:
+    ``force_ocr`` makes xberg OCR every page (and insert the recognized text
+    into the content that gets chunked), and ``ChunkingConfig`` produces
+    ``result.chunks`` directly. OCR is only configured when OCR_ENABLED is on,
+    so the no-OCR path simply extracts the embedded text layer.
+
+    For xberg configuration interface and defaults see:
+        https://docs.xberg.io/reference/configuration/
     """
-    return ExtractionConfig(
-        include_document_structure=True,
-        pdf_options=PdfConfig(
+    config: ExtractionConfig = {
+        "include_document_structure": True,
+        "pdf_options": PdfConfig(
             extract_images=True,
             extract_metadata=True,
             hierarchy=HierarchyConfig(
                 enabled=False,
             ),
         ),
-        result_format="element_based",
-        pages=PageConfig(
+        "result_format": ResultFormat.ELEMENT_BASED,
+        "pages": PageConfig(
             extract_pages=True,
         ),
-        images=ImageExtractionConfig(
+        "images": ImageExtractionConfig(
             extract_images=True,
+            inject_placeholders=True,
+            output_format="webp",
             auto_adjust_dpi=True,
+            max_image_dimension=1280,
         ),
-        language_detection=LanguageDetectionConfig(detect_multiple=True),
-    )
+        "chunking": ChunkingConfig(
+            chunker_type="text",
+            max_characters=int(os.getenv("MAX_CHUNK_LENGTH", "3000")),
+            overlap=int(os.getenv("CHUNK_OVERLAP", "0")),
+            trim=True,
+        ),
+    }
+    if is_ocr_enabled():
+        ocr = OcrLanguageCodes.from_env()
+        # force_ocr is intentionally NOT set: xberg auto-OCRs scanned pages and
+        # always OCRs embedded figures via run_ocr_on_images (default True).
+        # Forcing OCR here re-OCRs pages that already have a text layer while
+        # run_ocr_on_images also OCRs their figures, duplicating the text.
+        config["ocr"] = OcrConfig(
+            backend=ocr.backend,
+            language=ocr.languages,
+            element_config=OcrElementConfig(include_elements=True),
+        )
+    return config
+
+
+def get_extraction_config_for_image() -> ExtractionConfig:
+    """The extraction config for a standalone uploaded image.
+
+    A single ``extract`` pass does everything: xberg re-encodes the image to
+    webp (``output_format='webp'``) so ``result.images[0].data`` is ready to
+    write, and -- when OCR is enabled -- ``force_ocr`` produces the recognized
+    text in ``result.content``. ``run_ocr_on_images=False`` avoids the image
+    being OCR'd twice (force_ocr already covers it). No chunking: an image
+    yields one OCR document, not chunks.
+    """
+    config: ExtractionConfig = {
+        "images": ImageExtractionConfig(
+            extract_images=True,
+            run_ocr_on_images=False,
+            output_format="webp",
+            auto_adjust_dpi=True,
+            max_image_dimension=1280,
+        ),
+    }
+    if is_ocr_enabled():
+        ocr = OcrLanguageCodes.from_env()
+        config["force_ocr"] = True
+        config["ocr"] = OcrConfig(
+            backend=ocr.backend,
+            language=ocr.languages,
+            element_config=OcrElementConfig(include_elements=True),
+        )
+    return config
+
+
+def _unwrap_single(result: ExtractionResult) -> ExtractedDocument:
+    """Return the single document from an extraction result envelope.
+
+    xberg's ``extract`` returns an ``ExtractionResult`` envelope with a
+    ``results`` list and an ``errors`` list. For single-file extraction we
+    expect exactly one document; surface any error otherwise.
+    """
+    if result.errors:
+        err = result.errors[0]
+        raise RuntimeError(getattr(err, "message", None) or str(err))
+    if not result.results:
+        raise RuntimeError("Extraction produced no results.")
+    return result.results[0]
 
 
 def build_chunk_header(
     file_name: str,
     keywords: list[str],
+    languages: list[str],
     chunk: int,
     page_number: None | int,
     next_chunk: int | None,
@@ -108,6 +171,8 @@ def build_chunk_header(
 
     if keywords:
         header_data["keywords"] = keywords
+    if languages:
+        header_data["languages"] = languages
     if next_chunk:
         header_data["nextChunk"] = f"{(chunk + 1):05d}.md"
     if page_number:
@@ -118,233 +183,34 @@ def build_chunk_header(
     return f"---\n{yaml_block}\n---\n\n"
 
 
-async def _resolve_image_element(
-    result: ExtractionResult,
-    assets_dir: Path,
-    image_index: int,
-) -> tuple[str, bool]:
-    # TODO: remove image index hack and use "element" once kreuzberg bug is resolved
-    # Hint (maybe version >=4.10, but needs kreuzberg api analysis)
-    try:
-        image_data = result.images[image_index]["data"]
-    except Exception:
-        raise RuntimeError("Images cannot be extracted for this document.")
-    img = Image.open(io.BytesIO(image_data))
-    with tempfile.TemporaryDirectory() as tmp_dir:
-        tmp_file = Path(tmp_dir) / f"image_{image_index}.png"
-        img.save(tmp_file, format="PNG")
-        saved_image_path, ocr = await process_image_content(tmp_file, assets_dir)
+def _save_extracted_images(result: ExtractedDocument, assets_dir: Path) -> None:
+    """Save each extracted figure as ``image_{N}.webp`` under ``assets_dir``.
 
-    return (
-        f"\n> [Image: ../assets/{saved_image_path.name}]\n" + (f"> {ocr}\n" if ocr else ""),
-        False,
+    xberg re-encodes the figures to webp during extraction
+    (``ImageExtractionConfig.output_format='webp'``), so ``image.data`` is
+    ready-to-write webp bytes -- no PIL conversion needed. OCR of the document
+    is also handled by xberg, so each figure's text already lives in the
+    chunks; this only persists the image binaries.
+    """
+    for index, image in enumerate(result.images or []):
+        (assets_dir / f"image_{index}.webp").write_bytes(image.data)
+
+
+def _render_chunk_content(chunk: Chunk, inject_refs: bool) -> str:
+    """Build the markdown body for a chunk: optional image references + text.
+
+    When ``inject_refs`` is true, each figure the chunk covers (per
+    ``metadata.image_indices``) is surfaced as a ``> [Image: ...]`` reference
+    pointing at the saved webp asset. When false, no reference is injected --
+    but the chunk text (including any OCR'd content from ``force_ocr``) is
+    still returned unchanged.
+    """
+    if not inject_refs:
+        return chunk.content
+    refs = "".join(
+        f"\n> [Image: ../assets/image_{idx}.webp]\n" for idx in (chunk.metadata.image_indices or [])
     )
-
-
-async def resolve_element_content(
-    element: dict,
-) -> tuple[str, bool]:
-    """Map non-image element types to chunk content.
-
-    Image elements are handled separately in ``make_element_nodes`` so they can
-    be resolved concurrently.
-    """
-    etype = element["element_type"]
-
-    if etype == "title":
-        return element["text"], True
-    if etype in KREUZBERG_TEXT_ELEMENT_TYPES:
-        return element["text"], False
-    if etype == "page_break":
-        return "", True
-    return element["text"], False
-
-
-async def make_element_nodes(
-    elements: list[dict],
-    result: ExtractionResult,
-    assets_dir: Path,
-) -> AsyncGenerator[ElementNode]:
-    """Creates a processable/internal "ElementNode" from e.g. kreuzberg results.
-
-    Image elements are resolved concurrently (bounded by OCR_CONCURRENCY) so the
-    per-image pass -- OCR when enabled, webp save otherwise -- no longer runs
-    sequentially. Element order is preserved.
-    """
-    # Assign image indices in element order. This mirrors the previous sequential
-    # counter, mapping the Nth image element to result.images[N], and is safe
-    # under concurrent resolution (no shared mutable counter).
-    image_positions: dict[int, int] = {}
-    next_index = 0
-    for pos, element in enumerate(elements):
-        if element.get("element_type") == "image":
-            image_positions[pos] = next_index
-            next_index += 1
-
-    image_cache: dict[int, tuple[str, bool]] = {}
-    if image_positions:
-        concurrency = max(1, int(os.getenv("OCR_CONCURRENCY", "4")))
-        sem = asyncio.Semaphore(concurrency)
-
-        async def _resolve(pos: int, image_index: int) -> tuple[int, tuple[str, bool]]:
-            async with sem:
-                resolved = await _resolve_image_element(result, assets_dir, image_index)
-            return pos, resolved
-
-        gathered = await asyncio.gather(
-            *(_resolve(pos, idx) for pos, idx in image_positions.items())
-        )
-        for pos, resolved in gathered:
-            image_cache[pos] = resolved
-
-    for pos, element in enumerate(elements):
-        if element.get("element_type") == "image" and pos in image_cache:
-            content, starts_new_page = image_cache[pos]
-        else:
-            content, starts_new_page = await resolve_element_content(element)
-        yield ElementNode(
-            content=content,
-            starts_new_page=starts_new_page,
-            page_number=element.get("metadata", {}).get("page_number"),
-        )
-
-
-async def accumulate_chunks(
-    nodes: AsyncGenerator[ElementNode],
-    max_chunk_length: int,
-    has_pages: bool,
-) -> AsyncGenerator[Chunk]:
-    """Create chunks from element nodes to not exceed chunk limits."""
-    chunk_buffer: list[str] = []
-    buffer_length = 0
-    prev_page: int | None = None
-
-    async for node in nodes:
-        node_content_len = len(node.content)
-        node_content = node.content
-        node_page_number = node.page_number
-        prev_page = node.page_number if prev_page is None else prev_page
-
-        would_overflow = buffer_length + node_content_len > max_chunk_length
-
-        if node.starts_new_page or (would_overflow and chunk_buffer):
-            if chunk_buffer:
-                yield Chunk("\n".join(chunk_buffer), prev_page if has_pages else None)
-                prev_page = node_page_number
-                chunk_buffer = []
-                buffer_length = 0
-        if has_pages and node_page_number != prev_page:
-            if chunk_buffer:
-                yield Chunk("\n".join(chunk_buffer), prev_page)
-                prev_page = node_page_number
-                chunk_buffer = []
-                buffer_length = 0
-
-        if node_content_len > max_chunk_length:
-            # TODO: add "smarter" chunking. E.g. not to write two words on a new page mid sentence -?
-            for sub in chunked_content_iter(node_content, max_chunk_length):
-                yield Chunk(sub, node_page_number)
-            prev_page = node_page_number
-            continue
-        elif node_content_len:
-            chunk_buffer.append(node_content)
-            buffer_length += node_content_len
-
-    if chunk_buffer:
-        yield Chunk("\n".join(chunk_buffer), node_page_number if has_pages else None)
-        prev_page = node_page_number
-
-
-def chunked_content_iter(s: str, max_length: int = 100) -> Generator[str]:
-    """
-    Split text into chunks that:
-    - prefer sentence boundaries
-    - never exceed max_length
-    - do NOT split decimal numbers like 3.14
-    - fall back to word boundaries if a sentence is too long
-    - finally hard-split very long words if needed
-    """
-
-    s = s.strip()
-    if not s:
-        return
-
-    # Split after sentence-ending punctuation unless it's part of a decimal number
-    # Examples:
-    # "Hello.World" -> split
-    # "12.345" -> do not split
-    sentences = [
-        part.strip()
-        for part in re.split(
-            # split on:
-            # - ! or ?
-            # - . when it's NOT between digits (e.g 12.345 stays intact)
-            r"(?<=[!?])|(?<=\.)(?<!\d\.)|(?<=\.)(?!\d)",
-            s,
-        )
-        if part.strip()
-    ]
-
-    # Decimal matcher (kept for oversized-token protection later)
-    number_re = re.compile(r"^(\d+|\d{1,3}(,\d{3})+)(\.\d+)?$")
-    sentence_stop_chars = ".!?"
-
-    current = ""
-
-    for sentence in sentences:
-        candidate = f"{current} {sentence}".strip()
-
-        if len(candidate) <= max_length:
-            current = candidate
-            continue
-
-        if current:
-            yield current
-            current = ""
-
-        # If sentence fits, keep it whole
-        if len(sentence) <= max_length:
-            current = sentence
-            continue
-
-        # Too long -> split by words
-        words = sentence.split()
-        word_chunk = ""
-
-        for word in words:
-            candidate = f"{word_chunk} {word}".strip()
-
-            if len(candidate) <= max_length:
-                word_chunk = candidate
-                continue
-
-            if word_chunk:
-                yield word_chunk
-
-            if number_re.fullmatch(word) or word[-1:] in sentence_stop_chars:
-                word_chunk = word
-                continue
-
-            if len(word) > max_length:
-                trailing_num = re.search(r"\d+$", word)
-                if trailing_num and trailing_num.start() > 0:
-                    prefix = word[: trailing_num.start()]
-                    suffix = word[trailing_num.start() :]
-                    for i in range(0, len(prefix), max_length):
-                        yield prefix[i : i + max_length]
-                    word_chunk = suffix
-                else:
-                    for i in range(0, len(word), max_length):
-                        yield word[i : i + max_length]
-                    word_chunk = ""
-            else:
-                word_chunk = word
-
-        if word_chunk:
-            current = word_chunk
-
-    if current:
-        yield current
+    return f"{refs}{chunk.content}"
 
 
 def write_chunk(tmp_chunk_file: Path, output_chunk_file: Path, chunk_header: str) -> None:
@@ -355,65 +221,132 @@ def write_chunk(tmp_chunk_file: Path, output_chunk_file: Path, chunk_header: str
             shutil.copyfileobj(tmp_file, chunk_target)
 
 
-async def extract_keywords(chunk_file: Path, languages: list[str]) -> list[str]:
-    chunk_keywords: set[str] = set()
-    for lang in languages:
-        keyword_result = await extract_file(
-            chunk_file,
-            config=ExtractionConfig(
-                keywords=KeywordConfig(
-                    algorithm=KeywordAlgorithm.Yake,
-                    language=lang,
-                    max_keywords=int(os.getenv("MAX_KEYWORDS_FOR_LANGUAGE", "10")),
-                    ngram_range=(1, 4),
-                )
-            ),
-        )
-        if keyword_result.extracted_keywords:
-            keywords = {keyword.text for keyword in keyword_result.extracted_keywords}
+async def detect_chunk_language(chunk_file: Path) -> list[str]:
+    """Detect the language(s) of a chunk's content via xberg language detection.
 
-            chunk_keywords = chunk_keywords.union(keywords)
-    return sorted(list(chunk_keywords), key=str.casefold)
+    Runs a dedicated ``extract`` pass with ``LanguageDetectionConfig`` on the
+    temp ``.md`` file (the same file keyword extraction runs on). Returns the
+    detected language codes normalized to ISO 639-1 (e.g. ``["en"]``) for
+    surfacing in the chunk header and ``meta.json``; the caller maps them to a
+    KeywordConfig-supported code (or ``None``). ``mime_type`` is set to
+    suppress content-sniffing (see :func:`extract_keywords`).
+
+    ``min_confidence`` defaults to 0.5 (env: ``LANGUAGE_DETECTION_MIN_CONFIDENCE``)
+    rather than kreuzberg's 0.8 default because OCR'd chunk text is short and
+    noisy -- the default threshold detects nothing on typical chunks.
+    """
+    result = await extract(
+        ExtractInput(kind="uri", uri=str(chunk_file), mime_type="text/markdown"),
+        config=ExtractionConfig(
+            language_detection=LanguageDetectionConfig(
+                enabled=True,
+                min_confidence=float(os.getenv("LANGUAGE_DETECTION_MIN_CONFIDENCE", "0.5")),
+                detect_multiple=False,
+            ),
+        ),
+    )
+    document = _unwrap_single(result)
+    return [KeywordLanguageCodes.to_iso639_1(lang) for lang in (document.detected_languages or [])]
+
+
+async def extract_keywords(chunk_file: Path, language: str | None) -> list[Keyword]:
+    """Extract keywords from the markdown chunk files.
+
+    Returns the xberg :class:`Keyword` objects (carrying ``.text`` and
+    ``.score``) so the caller can rank by score for ``meta.json``. Deduplicated
+    by text (first occurrence kept).
+    """
+    keyword_result = await extract(
+        ExtractInput(kind="uri", uri=str(chunk_file), mime_type="text/markdown"),
+        config=ExtractionConfig(
+            keywords=KeywordConfig(
+                algorithm=KeywordAlgorithm.YAKE,
+                max_keywords=int(os.getenv("MAX_KEYWORDS_FOR_LANGUAGE", "10")),
+                language=language,
+            )
+        ),
+    )
+    document = _unwrap_single(keyword_result)
+    if not document.extracted_keywords:
+        return []
+    # Dedupe by text, keeping the first Keyword (preserves its score).
+    seen: dict[str, Keyword] = {}
+    for kw in document.extracted_keywords:
+        if kw.text not in seen:
+            seen[kw.text] = kw
+    return list(seen.values())
+
+
+def _sanitize_text_content(text: str) -> str:
+    """These code points are valid Unicode and therefore survive UTF-8 encoding,
+    but MIME sniffers such as libmagic may interpret their presence as evidence
+    of binary data and classify the file as application/octet-stream instead of text/plain.
+    Only control characters are removed;
+    whitespace (\\t, \\n, \\r) and all printable text (umlauts, dashes, emoji, ...) are preserved.
+    """
+
+    _CONTROL_CHARS_RE = re.compile(
+        r"[\x00-\x08\x0b\x0c\x0e-\x1f\x7f\x80-\x9f"
+        r"\u200b"  # zero-width space/joiner characters
+        r"\u200e\u200f"  # bidi marks
+        r"\u2028\u2029"  # line/paragraph separators
+        r"\u202a-\u202e"  # bidi overrides
+        r"\u2066-\u2069"  # bidi isolates
+        r"\ufeff]"  # BOM
+    )
+    return ftfy.fix_text(_CONTROL_CHARS_RE.sub("", text))
 
 
 async def finalize_chunk(
-    chunk: Chunk,
+    content: str,
+    page_number: int | None,
     chunk_num: int,
     chunk_dir: Path,
     tmp_dir: str,
-    languages: list[str],
     has_more: bool,
-) -> list[str]:
-    """Finalize a chunk by adding keywords and a header to a chunk file."""
+) -> tuple[list[Keyword], list[str]]:
+    """Finalize a chunk by detecting its language, extracting keywords, and
+    writing a header to a chunk file.
+
+    Language detection runs before keyword extraction so the detected code can
+    drive KeywordConfig's stopword filtering (mapped to a supported code or
+    ``None``). Returns ``(keywords, detected_languages)`` -- keywords as the
+    xberg :class:`Keyword` objects (for score-based ranking) -- so the caller
+    can aggregate both across chunks into ``meta.json``.
+    """
 
     chunk_file_name = f"{chunk_num:05d}.md"
     tmp_chunk_path = Path(tmp_dir) / chunk_file_name
 
+    sanitized = _sanitize_text_content(content)
     with tmp_chunk_path.open("wb") as f:
-        f.write(chunk.content.encode("utf-8"))
+        f.write(sanitized.encode("utf-8"))
 
-    keywords = await extract_keywords(tmp_chunk_path, languages)
+    detected_languages = await detect_chunk_language(tmp_chunk_path)
+    keyword_language = KeywordLanguageCodes.language(detected_languages)
+    keywords = await extract_keywords(tmp_chunk_path, keyword_language)
 
     header = build_chunk_header(
         file_name=chunk_file_name,
-        keywords=keywords,
+        keywords=sorted((kw.text for kw in keywords), key=str.casefold),
+        languages=detected_languages,
         chunk=chunk_num,
-        page_number=chunk.page_number,
+        page_number=page_number,
         next_chunk=chunk_num + 1 if has_more else None,
     )
 
     output_path = chunk_dir / chunk_file_name
     write_chunk(tmp_chunk_path, output_path, header)
 
-    return keywords
+    return keywords, detected_languages
 
 
 def _write_metadata(
     file_path: Path,
-    result: ExtractionResult,
+    result: ExtractedDocument,
     total_chunks: int,
     languages: list[str],
-    keywords: list[str],
+    keywords: list[Keyword],
     zip_dir: Path,
 ) -> None:
     extraction_metadata: dict = {
@@ -424,73 +357,65 @@ def _write_metadata(
     }
     if languages:
         extraction_metadata["languages"] = languages
-    if val := getattr(result, "metadata", {}).get("created_at"):
+    if result.metadata and (val := result.metadata.created_at):
         extraction_metadata["createdAt"] = val
     if keywords:
-        extraction_metadata["keywords"] = keywords
+        # Keep the 50 best-scoring keywords for meta.json
+        ranked_kw = sorted(
+            keywords,
+            key=lambda kw: (-kw.score),
+        )[:50]
+        extraction_metadata["keywords"] = [kw.text for kw in ranked_kw]
 
     metadata_path = zip_dir / "meta.json"
     metadata_path.write_text(json.dumps(extraction_metadata, indent=2), encoding="utf-8")
 
 
-async def _annotate_last_async(aiterable: AsyncGenerator[Any, Any]):
-    _stop = object()
-    it = aiter(aiterable)
-    prev = await anext(it, _stop)
-
-    if prev is _stop:
-        return
-
-    async for item in it:
-        yield prev, False
-        prev = item
-
-    yield prev, True
-
-
 async def process_file_contents(file_path: Path, zip_dir: Path, assets_dir: Path) -> None:
-    """Extract the contents of a file into chunked markdown with metadata.
+    """Extract a file into chunked markdown plus aggregate metadata.
+
+    OCR and chunking are both performed by xberg in a single ``extract`` pass
+    (see ``get_extraction_config_for_file_content``). This writes one
+    ``chunks/NNNNN.md`` per ``result.chunks`` entry (each with per-chunk YAKE
+    keywords and a YAML header), the extracted figures as ``assets/*.webp``,
+    and a top-level ``meta.json``.
 
     For conceptual requirements and guide see:
         https://github.com/hawk-digital-environments/hawk-ixdlab-docs/blob/main/hawki/RAG/file_extractor/readme.md
-
-    Pipeline:
-        1. Extract file via kreuzberg (element-based result format)
-        2. Stream elements into typed ElementNodes (async generator)
-        3. Accumulate nodes into Chunks respecting character limits (async generator)
-        4. Finalize each chunk (keywords + header + write)
-        5. Write aggregate metadata
     """
     config = get_extraction_config_for_file_content()
-    result = await extract_file(str(file_path), config=config)
+    result = _unwrap_single(
+        await extract(ExtractInput(kind="uri", uri=str(file_path)), config=config)
+    )
 
-    languages = result.detected_languages or [x.strip() for x in os.getenv("OCR_LANGUAGES", "").split(",") if x] or ["en"]
-    max_chunk_length = int(os.getenv("MAX_CHUNK_LENGTH", 3000))
-    has_pages = result.pages is not None
+    save_image_refs = is_save_document_image_refs_enabled()
+    if save_image_refs:
+        _save_extracted_images(result, assets_dir)
 
     chunk_dir = zip_dir / "chunks"
     chunk_dir.mkdir(parents=True, exist_ok=True)
 
-    nodes = make_element_nodes(result.elements, result, assets_dir)
-    chunks = accumulate_chunks(nodes, max_chunk_length, has_pages)
-
-    all_keywords: list[str] = []
-    total_chunks = 0
+    chunks = result.chunks or []
+    total_chunks = len(chunks)
+    all_keywords: list[Keyword] = []
+    all_languages: list[str] = []
 
     with tempfile.TemporaryDirectory() as tmp_dir:
-        async for chunk, is_last in _annotate_last_async(chunks):
-            total_chunks += 1
-            keywords = await finalize_chunk(
-                chunk,
-                total_chunks,
-                chunk_dir,
-                tmp_dir,
-                languages,
-                has_more=not is_last,
+        for i, chunk in enumerate(chunks):
+            keywords, languages = await finalize_chunk(
+                content=_render_chunk_content(chunk, save_image_refs),
+                page_number=chunk.metadata.first_page,
+                chunk_num=i + 1,
+                chunk_dir=chunk_dir,
+                tmp_dir=tmp_dir,
+                has_more=i < total_chunks - 1,
             )
             all_keywords.extend(keywords)
+            all_languages.extend(languages)
 
-    _write_metadata(file_path, result, total_chunks, languages, all_keywords, zip_dir)
+    # Deduplicate per-chunk detected languages (stable sort) for meta.json.
+    unique_languages = sorted(set(all_languages), key=str.casefold)
+    _write_metadata(file_path, result, total_chunks, unique_languages, all_keywords, zip_dir)
 
 
 async def process_file_core(
@@ -502,9 +427,6 @@ async def process_file_core(
     Args:
         file_bytes: Raw file content.
         filename: Sanitized filename.
-        text_encoding: If set, this file was detected as a text fallback
-            (not a kreuzberg-supported format). The value is the detected
-            encoding name from charset-normalizer.
     """
     with TemporaryDirectory() as tmp_base:
         tmpdir = Path(tmp_base)
@@ -546,67 +468,38 @@ async def process_file(
     )
 
 
-def save_as_webp(
-    image_file: Path,
-    image_output_file: Path,
-    max_size: tuple[int, int] = (1280, 1280),
-    quality: int = 100,
-):
-    """Save image as webp file.
+async def process_image_content(tmp_imagefile_path: Path, assets_dir: Path):
+    """Save an uploaded image as a webp asset and run OCR on it.
+
+    A single xberg ``extract`` pass does both jobs: it re-encodes the image to
+    webp (``output_format='webp'`` -> ``result.images[0].data``) and, when OCR
+    is enabled, force-OCRs it into ``result.content``. PIL is used only to read
+    the source MIME type -- the conversion is entirely xberg's.
 
     Args:
-        image_path: The path to the input image to convert.
-        image_output_path: The path to the output image.
-        max_size: Optional size adjustment.
+        tmp_imagefile_path: The image file on disk (e.g. an uploaded image).
+        assets_dir: The output folder for assets (webp image + OCR markdown).
     """
-    with Image.open(image_file) as img:
-        if img.mode not in ("RGB", "RGBA"):
-            if "A" in img.getbands():
-                img = img.convert("RGBA")
-            else:
-                img = img.convert("RGB")
+    data = tmp_imagefile_path.read_bytes()
+    mime = Image.open(io.BytesIO(data)).get_format_mimetype()
 
-        img.thumbnail(max_size, Image.Resampling.LANCZOS)
-
-        img.save(image_output_file, format="WEBP", quality=quality)
-    return image_output_file
-
-
-async def process_image_content(
-    tmp_imagefile_path: Path, assets_dir: Path
-):
-    """Run ocr on an image file.
-
-    Args:
-        tmp_imagefile_path: The temporary image file.
-        assets_dir: The output folder for assets like e.g. an image.
-    """
-
-    saved_image_path = save_as_webp(
-        tmp_imagefile_path, assets_dir / tmp_imagefile_path.with_suffix(".webp").name
+    config = get_extraction_config_for_image()
+    result = _unwrap_single(
+        await extract(ExtractInput(kind="bytes", bytes=data, mime_type=mime), config=config)
     )
-    languages = [x.strip() for x in os.getenv("OCR_LANGUAGES", "").split(",") if x] or ["en"]
-    if not is_ocr_enabled():
-        return saved_image_path, ""
+
+    saved_image_path = assets_dir / tmp_imagefile_path.with_suffix(".webp").name
+    images = result.images or []
+    if images:
+        saved_image_path.write_bytes(images[0].data)
+
     ocr_string = ""
-    ocr_content =[]
-    for language in languages:
-        config = ExtractionConfig(
-            force_ocr=True,
-            ocr=OcrConfig(
-                backend="paddleocr",
-                language=language,
-            ),
+    if result.ocr_elements:
+        ocr_string = " ".join(
+            elem.text.strip() for elem in result.ocr_elements if elem.text.strip()
         )
-        result = await extract_file(str(tmp_imagefile_path), config=config)
-        if result.ocr_elements:
-            ocr_string += " || ".join(
-                [elem["text"].strip() for elem in result.ocr_elements if elem["text"].strip()]
-            )
-        if result.content:
-            ocr_content.append(result.content)
-    if ocr_content:
-        (assets_dir / Path(f"{tmp_imagefile_path.stem}_ocr.md")).write_text(
-            " ".join(ocr_content), encoding="utf-8"
+    if result.content:
+        (assets_dir / f"{tmp_imagefile_path.stem}_ocr.md").write_text(
+            result.content, encoding="utf-8"
         )
     return saved_image_path, ocr_string

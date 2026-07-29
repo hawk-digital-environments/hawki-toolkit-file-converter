@@ -70,7 +70,7 @@ COPY . .
 ARG APP_VERSION=dev
 RUN echo "$APP_VERSION" > VERSION.md
 
-CMD ["uv", "run", "--no-sync", "pytest", "-vvv", "-x"]
+CMD ["uv", "run", "--no-sync", "pytest", "-vvv"]
 
 
 FROM development AS requirements
@@ -87,7 +87,7 @@ RUN uv export --no-dev --no-hashes --no-emit-project -o requirements.txt > requi
 FROM temporalio/auto-setup:1.29.7 AS temporal-auto-setup
 
 
-# Build-time only: pre-fetch kreuzberg's PaddleOCR + layout ONNX models from
+# Build-time only: pre-fetch xberg's PaddleOCR + layout ONNX models from
 # HuggingFace into a standard HF cache layout.
 FROM base AS model-cache
 RUN --mount=type=cache,id=pip-cache,target=/root/.cache/pip,sharing=locked \
@@ -178,9 +178,13 @@ ENV TEMPORAL_MAX_CONCURRENT=5
 ENV TEMPORAL_MAX_CACHED_WORKFLOWS=0
 ENV HOME=/tmp
 ENV RUST_LOG=info
-ENV OCR_LANGUAGES=en
+
+# Disable image extraction until image handling is optimized in HAWKI >=2.5.
+# E,g, via image budget or smart rag switch for pdf containing many images.
+ENV SAVE_DOCUMENT_IMAGE_REFS=false
+
 # Pre-fetched model cache (built in the model-cache stage). HF_HOME and
-# HUGGINGFACE_HUB_CACHE point kreuzberg's hf-hub downloader here so cache hits
+# HUGGINGFACE_HUB_CACHE point xberg's hf-hub downloader here so cache hits
 # need no network.
 ENV HF_HOME=/var/cache/huggingface
 ENV HUGGINGFACE_HUB_CACHE=/var/cache/huggingface/hub

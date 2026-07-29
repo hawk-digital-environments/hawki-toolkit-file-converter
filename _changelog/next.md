@@ -1,8 +1,11 @@
-# v%%VERSION%%
+# v%%VERSION%
 
 ### What's New
 
-[//]: # (- The main new features and changes in this version.)
+- Tesseract is now the default OCR backend (`OCR_BACKEND=tesseract`), replacing paddle-ocr. Tesseract was chosen because it supports multilingual OCR detection out of the box; paddle-ocr remains available for single-language workloads but is slower.
+- Document image extraction is temporarily disabled by default in production (`SAVE_DOCUMENT_IMAGE_REFS` now defaults to `false`). Extracted figures are no longer written as `assets/*.webp` or referenced in chunk markdown until a future hawki >2.5 release defines a strategy for them; set the flag to `true` to restore the previous behavior.
+- Per-chunk language detection: each chunk's language is detected right before keyword extraction and surfaced in the chunk's YAML header (`languages: [...]`) and aggregated in `meta.json`. Keyword stopword filtering now follows the chunk's own detected language.
+- `meta.json` keywords are reduced to top 50. Per-chunk headers still list individual chunk's keywords.
 
 ### Quality of Life
 
@@ -10,11 +13,17 @@
 
 ### Bugfix
 
-[//]: # (- List of bugs that have been fixed in this version.)
+- Strip stray control characters (e.g. `0x02` STX) leaked by the PDF text-layer extraction so output markdown is detected as `text/plain` by MIME sniffers instead of `application/octet-stream`.
+- Fix keyword extraction crashing on chunks whose body begins with the BMP magic `BM` (e.g. OCR'd `"BMAS, ..."`). xberg content-sniffed the temp `.md` as `image/bmp` and raised `Unknown bitmap header type`; the extraction now declares `mime_type="text/markdown"`.
 
 ### Internals
 
-[//]: # (- Changes that are mostly relevant to maintainers and contributors, such as refactors, dependency updates, CI changes, etc.)
+- Replaced the [`kreuzberg`](https://github.com/kreuzberg-dev/kreuzberg) extraction engine with its successor [`xberg`](https://github.com/xberg-io/xberg). The library was renamed and its Python API redesigned around a unified `extract()` entry point and an envelope result; the converter's public HTTP API is unchanged.
+- Document extraction no longer emits per-figure `_ocr.md` sidecar files — the OCR text already lives in the extracted chunks. (Standalone image uploads still produce a `{stem}_ocr.md`.)
+- Prefetched PaddleOCR ONNX models are now pulled from the `xberg-io` Hugging Face org instead of the legacy `Kreuzberg` org.
+- Language-code handling consolidated under a `LanguageCodes` base class in `utils/language_helper.py`, shared by `OcrLanguageCodes` (OCR backend codes) and a new `KeywordLanguageCodes` (keyword stopword-language selection).
+- `OCR_LANGUAGES` is now used solely by the OCR backend; it no longer acts as a fallback for keyword-language detection (which is per-chunk).
+- New env var `LANGUAGE_DETECTION_MIN_CONFIDENCE` (default `0.5`) controls the per-chunk detection confidence threshold.
 
 ### Deprecation
 

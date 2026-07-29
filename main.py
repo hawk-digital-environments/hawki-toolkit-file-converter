@@ -1,5 +1,5 @@
 """
-File-to-Markdown converter service powered by kreuzberg.
+File-to-Markdown converter service powered by xberg.
 """
 
 import os
@@ -10,7 +10,7 @@ from datetime import timedelta
 from enum import StrEnum
 from pathlib import Path
 
-import kreuzberg
+import xberg
 from fastapi import (
     Depends,
     FastAPI,
@@ -54,12 +54,10 @@ from task import (
 )
 from utils.helper import (
     get_file_type,
-    get_image_file_formats,
     get_supported_formats,
-    get_text_encoding,
-    is_text_bytes,
     sanitize_filename,
 )
+from utils.language_helper import OcrLanguageCodes
 from utils.logging_helper import logging_help
 
 REQUIRED_KEY = os.getenv("F_API_KEY", "").strip()
@@ -96,9 +94,10 @@ class HealthCheck(BaseModel):
 
 
 def _run_dependency_checks() -> None:
-    """Check that expected ocr backend is installed"""
-    if "paddle-ocr" not in kreuzberg.list_ocr_backends():
-        raise RuntimeError("Missing binary: tesseract")
+    """Check that the configured OCR backend is registered with xberg."""
+    backend = OcrLanguageCodes.from_env().backend
+    if backend not in xberg.list_ocr_backends():
+        raise RuntimeError(f"Missing OCR backend: {backend}")
 
 
 def _cleanup(fh, run_dir: str) -> None:
@@ -224,11 +223,7 @@ async def extract(file: UploadFile = File(...)):
             shutil.copyfileobj(file.file, f)
 
         result_dir = run_dir / "result"
-        result = await run_processing(
-            str(upload_path),
-            safe_name,
-            str(result_dir)
-        )
+        result = await run_processing(str(upload_path), safe_name, str(result_dir))
 
         result_path = Path(result.result_path)
         fh = open(result_path, "rb")
@@ -267,7 +262,7 @@ async def convert(
     Returns `202 Accepted` with `{job_id, status, download_url}` for the new job.
     """
     safe_name = await _prepare_upload(file)
-    
+
     client = await get_temporal_client()
 
     job_id = f"convert-{uuid.uuid4()}"
@@ -453,7 +448,6 @@ async def root() -> RootResponse:
         service="File to Markdown Converter",
         auth="Bearer token required",
         supported_formats=get_supported_formats(),
-        image_formats=get_image_file_formats(),
         endpoints={
             "/extract": "POST - Synchronous upload + conversion (returns zip)",
             "/convert": "POST - Async conversion; returns job_id (optional callback_url)",

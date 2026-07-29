@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from typing import Any, Literal
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel
 
 
 class ConvertResponse(BaseModel):
@@ -62,5 +62,4 @@ class RootResponse(BaseModel):
     service: str
     auth: str
     supported_formats: set[str]
-    image_formats: set[str]
     endpoints: dict[str, str]

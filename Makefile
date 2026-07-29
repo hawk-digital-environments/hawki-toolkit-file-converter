@@ -21,7 +21,7 @@ up: build ## Build and run the production container (requires .env with F_API_KE
 		echo "F_API_KEY not set. Provide it in .env or export it before running." >&2; \
 		exit 1; \
 	fi; \
-	docker run --rm -p 8001:80 -e "F_API_KEY=$${F_API_KEY}" $(IMAGE)
+	docker run --rm -p 8002:80 -e "F_API_KEY=$${F_API_KEY}" $(IMAGE)
 
 
 .PHONY: ci-test
@@ -37,6 +37,11 @@ ci-test: ## Run CI tests via docker-compose.ci.yml
 lint: ## Run ruff linter
 	uv run ruff check --fix .
 	uv run ruff format .
+
+.PHONY: profile
+profile: ## Profile the PDF pipeline with pyinstrument (writes ./profiles/*.html)
+	F_API_KEY=test-api-key uv run pytest tests/test_profile_pdf.py -m profile -s
+	@echo "Open ./profiles/profile_pdf_ocr_on.html (or _ocr_off.html) in a browser."
 
 .PHONY: down
 down: ## Stop and remove containers
