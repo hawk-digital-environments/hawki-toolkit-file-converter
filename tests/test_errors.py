@@ -1,27 +1,22 @@
 from unittest.mock import AsyncMock, MagicMock, patch
 
 
-def _make_result_with_broken_image() -> MagicMock:
-    result = MagicMock()
-    result.content = ""
-    result.elements = [
-        {
-            "element_type": "image",
-            "text": "",
-            "metadata": {"page_number": 1},
-        }
-    ]
-    result.images = []
-    result.pages = 1
-    result.mime_type = "application/pdf"
-    result.detected_languages = ["de"]
-    return result
+def _make_envelope_with_error() -> MagicMock:
+    """xberg's extract() returns an ExtractionResult envelope; a non-empty
+    errors list makes _unwrap_single raise RuntimeError, which the /extract
+    handler surfaces as a 400."""
+    error = MagicMock()
+    error.message = "extraction failed"
+    envelope = MagicMock()
+    envelope.errors = [error]
+    envelope.results = []
+    return envelope
 
 
 def test_runtime_error_returns_400_with_message(client, auth_headers) -> None:
-    mock_result = _make_result_with_broken_image()
-    with patch("utils.processor.extract_file", new_callable=AsyncMock) as mock_extract:
-        mock_extract.return_value = mock_result
+    mock_envelope = _make_envelope_with_error()
+    with patch("utils.processor.extract", new_callable=AsyncMock) as mock_extract:
+        mock_extract.return_value = mock_envelope
         response = client.post(
             "/extract",
             files={"file": ("broken.pdf", b"fake pdf", "application/pdf")},

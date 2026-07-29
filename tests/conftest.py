@@ -160,12 +160,21 @@ def temporal_test_env():
 def api_key(monkeypatch):
     """Set the api key in tests."""
     monkeypatch.setenv("F_API_KEY", TEST_API_KEY)
+    import main
+
+    monkeypatch.setattr(main, "REQUIRED_KEY", TEST_API_KEY)
 
 
 @pytest.fixture(autouse=True)
 def ocr_enabled(monkeypatch):
     """Enable OCR for tests that assert OCR output (production default is off)."""
     monkeypatch.setenv("OCR_ENABLED", "true")
+
+
+@pytest.fixture(autouse=True)
+def save_document_refs(monkeypatch):
+    """Add saving images as a default in tests. Default is disbaled in production for now."""
+    monkeypatch.setenv("SAVE_DOCUMENT_IMAGE_REFS", "true")
 
 
 @pytest.fixture(autouse=True)
@@ -313,6 +322,30 @@ def assert_markdown() -> Callable[[str, str, dict[str, bytes]], None]:
         assert content == expected_content
 
     return _assert_markdown
+
+
+@pytest.fixture
+def assert_markdown_content() -> Callable[[str, str, dict[str, bytes]], None]:
+    """Return a helper that asserts only the markdown body matches expected,
+    ignoring the YAML frontmatter header.
+
+    Use when chunk header fields (pageNumber, keywords, ...) legitimately differ
+    between two extractions but the underlying text must be identical (e.g.
+    comparing PDF vs DOCX output of the same source document).
+    """
+
+    def _assert_markdown_content(
+        actual_path: str,
+        expected_content: str,
+        entries: dict[str, bytes],
+    ) -> None:
+        actual = entries[actual_path].decode("utf-8")
+        match = re.search(r"---\n.*?\n---\n?(.*)", actual, re.DOTALL)
+        content = match.group(1) if match else actual
+        assert content == expected_content, f"Markdown content mismatch for {actual_path}.\n"
+        assert content == expected_content
+
+    return _assert_markdown_content
 
 
 @pytest.fixture

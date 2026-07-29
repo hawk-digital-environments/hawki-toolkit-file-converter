@@ -14,9 +14,14 @@ def doc_file(testdata_dir) -> Path:
 def expected_doc_md_content() -> str:
     """Return the expected markdown content from PDF extraction."""
     return (
-        "\nFoobar\n\n"
-        + "> [Image: ../assets/image_0.webp]\n"
-        + "> HOLIDAY THEME OCR TEST || WÖRTER || DEUTSCHE || ENGLISH WORDS || BEACH || STRAND || RELAX || URLAUB || SONNE || SUMMER || TRAVEL || MEER\n"
+        "\n\n> [Image: ../assets/image_0.webp]\n"
+        "Foobar\n\n"
+        "HOLIDAY THEME OCR TEST\n\n"
+        "ENGLISH WORDS DEUTSCHE WÖRTER\n"
+        "BEACH STRAND\n"
+        "RELAX URLAUB\n"
+        "SUMMER SONNE\n\n"
+        "TRAVEL MEER"
     )
 
 
@@ -30,16 +35,16 @@ def expected_docx_metadata() -> dict:
         "mimeType": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
         "languages": ["en"],
         "keywords": [
-            "deutsche",
-            "foobar",
-            "holiday theme",
+            "foobar holiday theme",
+            "sonne travel meer",
             "holiday theme ocr",
-            "holiday theme ocr test",
-            "image",
-            "ocr test",
-            "theme ocr",
             "theme ocr test",
-            "wörter",
+            "ocr test english",
+            "deutsche wörter beach",
+            "wörter beach strand",
+            "beach strand relax",
+            "strand relax urlaub",
+            "relax urlaub summer",
         ],
     }
 
@@ -49,17 +54,19 @@ def expected_doc_md_header() -> dict:
     return {
         "file": "00001.md",
         "chunk": 1,
+        "languages": ["en"],
+        "pageNumber": 1,
         "keywords": [
-            "deutsche",
-            "foobar",
-            "holiday theme",
+            "beach strand relax",
+            "deutsche wörter beach",
+            "foobar holiday theme",
             "holiday theme ocr",
-            "holiday theme ocr test",
-            "image",
-            "ocr test",
-            "theme ocr",
+            "ocr test english",
+            "relax urlaub summer",
+            "sonne travel meer",
+            "strand relax urlaub",
             "theme ocr test",
-            "wörter",
+            "wörter beach strand",
         ],
     }
 
@@ -90,7 +97,6 @@ def test_extract_doc_returns_zip(
     assert sorted([name for name in entries]) == sorted(
         [
             "output/assets/image_0.webp",
-            "output/assets/image_0_ocr.md",
             "output/chunks/00001.md",
             "output/meta.json",
         ]

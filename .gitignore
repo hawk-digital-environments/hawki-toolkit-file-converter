@@ -14,4 +14,5 @@ hawki_toolkit_file_converter.egg-info
 .ruff_cache
 conversion.log
 debug
+profiles
 VERSION.md

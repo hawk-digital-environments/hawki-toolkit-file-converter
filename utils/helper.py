@@ -1,13 +1,9 @@
 # utils/helper.py
-import os
 import re
 from pathlib import Path, PurePosixPath
 from urllib.parse import quote
 
-from charset_normalizer import from_bytes
-from fastapi import UploadFile
-
-_TEXT_DETECTION_SAMPLE_SIZE = 64 * 1024
+from xberg import list_supported_formats
 
 
 def make_content_disposition(filename_stem: str) -> str:
@@ -55,111 +51,8 @@ def make_content_disposition(filename_stem: str) -> str:
 
 
 def get_supported_formats() -> set[str]:
-    """Supported formats.
-
-    Supported formats are not available dynamically via python api and
-    currently need to be extracted statically by running rust.
-    Example see: https://github.com/kreuzberg-dev/kreuzberg/blob/v4.8.5/crates/kreuzberg/src/core/mime.rs#L877-L903
-    """
-    return {
-        ".7z",
-        ".bib",
-        ".bmp",
-        ".commonmark",
-        ".csv",
-        ".dbf",
-        ".dbk",
-        ".djot",
-        ".doc",
-        ".docbook",
-        ".docbook4",
-        ".docbook5",
-        ".docm",
-        ".docx",
-        ".dot",
-        ".dotm",
-        ".dotx",
-        ".eml",
-        ".enw",
-        ".epub",
-        ".fb2",
-        ".gif",
-        ".gz",
-        ".htm",
-        ".html",
-        ".hwp",
-        ".hwpx",
-        ".ipynb",
-        ".j2c",
-        ".j2k",
-        ".jats",
-        ".jb2",
-        ".jbig2",
-        ".jp2",
-        ".jpeg",
-        ".jpg",
-        ".jpm",
-        ".jpx",
-        ".json",
-        ".jsonl",
-        ".key",
-        ".latex",
-        ".markdown",
-        ".md",
-        ".mdx",
-        ".mj2",
-        ".msg",
-        ".nbib",
-        ".ndjson",
-        ".numbers",
-        ".ods",
-        ".odt",
-        ".opml",
-        ".org",
-        ".pages",
-        ".pbm",
-        ".pdf",
-        ".pgm",
-        ".png",
-        ".pnm",
-        ".pot",
-        ".potm",
-        ".potx",
-        ".ppm",
-        ".ppsx",
-        ".ppt",
-        ".pptm",
-        ".pptx",
-        ".pst",
-        ".ris",
-        ".rst",
-        ".rtf",
-        ".svg",
-        ".tar",
-        ".tex",
-        ".tgz",
-        ".tif",
-        ".tiff",
-        ".toml",
-        ".tsv",
-        ".txt",
-        ".typ",
-        ".typst",
-        ".webp",
-        ".xla",
-        ".xlam",
-        ".xls",
-        ".xlsb",
-        ".xlsm",
-        ".xlsx",
-        ".xlt",
-        ".xltx",
-        ".xml",
-        ".yaml",
-        ".yml",
-        ".zip",
-        *get_image_file_formats()
-    }
+    """Supported formats file extensions."""
+    return {f".{x.extension}" for x in list_supported_formats()}
 
 
 def get_image_file_formats():
@@ -198,11 +91,6 @@ def get_file_type(filename: str) -> str | None:
     return ext
 
 
-def is_image(file: UploadFile) -> bool:
-    """Check if the file is a readable image format."""
-    return is_image_filename(file.filename)
-
-
 def is_image_filename(filename: str | None) -> bool:
     """Check if the filename is a readable image format."""
     return get_file_type(filename) in get_image_file_formats()
@@ -223,39 +111,3 @@ def sanitize_filename(filename: str) -> str:
     if ".." in basename:
         raise ValueError(f"Invalid filename (path traversal): {filename!r}")
     return basename
-
-
-def get_text_encoding(data: bytes) -> str | None:
-    """Detect text encoding from file bytes using charset-normalizer.
-
-    Only reads a sample prefix to avoid scanning huge payloads.
-    Returns the detected encoding name (e.g. 'utf_8', 'iso-8859-1') or None.
-    """
-    if not data:
-        return None
-    sample = data[:_TEXT_DETECTION_SAMPLE_SIZE]
-    result = from_bytes(sample)
-    best = result.best()
-    if best is None:
-        return None
-    return best.encoding
-
-
-def is_text_bytes(data: bytes) -> bool:
-    """Check whether the given bytes represent decodable text content.
-
-    Uses charset-normalizer for detection. Returns True only if the
-    content is confidently identified as text (not binary).
-    """
-    if not data:
-        return False
-    sample = data[:_TEXT_DETECTION_SAMPLE_SIZE]
-    result = from_bytes(sample)
-    best = result.best()
-    if best is None:
-        return False
-    try:
-        sample.decode(best.encoding)
-        return True
-    except UnicodeDecodeError, LookupError:
-        return False

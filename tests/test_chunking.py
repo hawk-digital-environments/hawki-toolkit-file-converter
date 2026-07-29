@@ -76,9 +76,6 @@ def test_chunk_with_1(
         "output/meta.json",
         {
             "chunks": 10,
-            "languages": [
-                "en",
-            ],
             "mimeType": "application/pdf",
             "name": "bar.pdf",
             "size": 590,
@@ -180,9 +177,6 @@ def test_chunk_with_2(
         "output/meta.json",
         {
             "chunks": 5,
-            "languages": [
-                "en",
-            ],
             "mimeType": "application/pdf",
             "name": "bar.pdf",
             "size": 590,
@@ -272,9 +266,6 @@ def test_chunk_with_3(
         "output/meta.json",
         {
             "chunks": 4,
-            "languages": [
-                "en",
-            ],
             "mimeType": "application/pdf",
             "name": "bar.pdf",
             "size": 590,

@@ -1,13 +1,13 @@
-"""Fetch kreuzberg model repos from HuggingFace into the HF cache at build time.
+"""Fetch xberg model repos from HuggingFace into the HF cache at build time.
 
 Populates $HF_HOME/hub so the cache can be COPY'd into the final image and read
-by kreuzberg at runtime without network access or blob-lock contention.
+by xberg at runtime without network access or blob-lock contention.
 
-Only the paddleocr-onnx-models artifacts actually referenced by kreuzberg
-v4.9.2 (mobile tier) are pulled. layout-models is omitted entirely because
+Only the paddleocr-onnx-models artifacts actually referenced by xberg
+v1.0.x (mobile tier) are pulled. layout-models is omitted entirely because
 layout detection is disabled (layout=None) in this project. v6/, the server
 tier, the doc-orientation/table classifiers, and legacy SHARED_MODELS are also
-skipped to keep the image small. If kreuzberg is upgraded (e.g. to a v6 model
+skipped to keep the image small. If xberg is upgraded (e.g. to a v6 model
 version) or model_tier/auto_rotate defaults change, revisit MODEL_SOURCES.
 """
 
@@ -20,7 +20,7 @@ from huggingface_hub import snapshot_download
 # unambiguous across huggingface_hub versions. Add a family here if a new
 # script family is introduced upstream.
 MODEL_SOURCES = {
-    "Kreuzberg/paddleocr-onnx-models": [
+    "xberg-io/paddleocr-onnx-models": [
         "manifest.json",
         "v2/det/mobile.onnx",
         "v2/classifiers/PP-LCNet_x1_0_textline_ori.onnx",

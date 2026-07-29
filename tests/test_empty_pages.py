@@ -25,7 +25,6 @@ def expected_docx_metadata(expected_size) -> dict:
         "chunks": 1,
         "createdAt": "2000-01-01T00:00:00Z",
         "mimeType": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-        "languages": ["en"],
     }
 
 
@@ -34,6 +33,7 @@ def expected_doc_md_header() -> dict:
     return {
         "file": "00001.md",
         "chunk": 1,
+        "pageNumber": 1,
         "keywords": [],
     }
 
