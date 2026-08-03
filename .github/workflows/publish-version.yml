@@ -15,6 +15,7 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       version: ${{ steps.version.outputs.version }}
+      major-version: ${{ steps.version.outputs.major-version }}
     steps:
       - name: Checkout repository
         uses: actions/checkout@v7
@@ -62,6 +63,7 @@ jobs:
           platforms: linux/amd64,linux/arm64
           tags: |
             digitalenvironments/hawki-toolkit-file-converter:latest
+            digitalenvironments/hawki-toolkit-file-converter:${{ needs.detect-version.outputs.major-version }}
             digitalenvironments/hawki-toolkit-file-converter:${{ needs.detect-version.outputs.version }}
           build-args: |
             APP_VERSION=${{ needs.detect-version.outputs.version }}
