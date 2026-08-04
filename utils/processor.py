@@ -41,11 +41,6 @@ from utils.helper import (
 from utils.language_helper import KeywordLanguageCodes, OcrLanguageCodes
 
 
-def is_ocr_enabled() -> bool:
-    """Whether OCR should run anywhere. Defaults to off; set OCR_ENABLED=true to enable."""
-    return os.getenv("OCR_ENABLED", "true").strip().lower() in ("true", "1", "yes")
-
-
 def is_save_document_image_refs_enabled() -> bool:
     """Whether document-extracted figures are saved and referenced in chunks.
 
@@ -62,10 +57,10 @@ def get_extraction_config_for_file_content() -> ExtractionConfig:
     """The extraction config for a file.
 
     OCR and chunking are delegated to xberg in a single ``extract`` pass:
-    ``force_ocr`` makes xberg OCR every page (and insert the recognized text
-    into the content that gets chunked), and ``ChunkingConfig`` produces
-    ``result.chunks`` directly. OCR is only configured when OCR_ENABLED is on,
-    so the no-OCR path simply extracts the embedded text layer.
+    xberg auto-OCRs scanned pages and OCRs embedded figures
+    (``run_ocr_on_images`` defaults to True), inserting the recognized text
+    into the content that gets chunked, and ``ChunkingConfig`` produces
+    ``result.chunks`` directly.
 
     For xberg configuration interface and defaults see:
         https://docs.xberg.io/reference/configuration/
@@ -97,17 +92,16 @@ def get_extraction_config_for_file_content() -> ExtractionConfig:
             trim=True,
         ),
     }
-    if is_ocr_enabled():
-        ocr = OcrLanguageCodes.from_env()
-        # force_ocr is intentionally NOT set: xberg auto-OCRs scanned pages and
-        # always OCRs embedded figures via run_ocr_on_images (default True).
-        # Forcing OCR here re-OCRs pages that already have a text layer while
-        # run_ocr_on_images also OCRs their figures, duplicating the text.
-        config["ocr"] = OcrConfig(
-            backend=ocr.backend,
-            language=ocr.languages,
-            element_config=OcrElementConfig(include_elements=True),
-        )
+    ocr = OcrLanguageCodes.from_env()
+    # force_ocr is intentionally NOT set: xberg auto-OCRs scanned pages and
+    # always OCRs embedded figures via run_ocr_on_images (default True).
+    # Forcing OCR here re-OCRs pages that already have a text layer while
+    # run_ocr_on_images also OCRs their figures, duplicating the text.
+    config["ocr"] = OcrConfig(
+        backend=ocr.backend,
+        language=ocr.languages,
+        element_config=OcrElementConfig(include_elements=True),
+    )
     return config
 
 
@@ -116,11 +110,12 @@ def get_extraction_config_for_image() -> ExtractionConfig:
 
     A single ``extract`` pass does everything: xberg re-encodes the image to
     webp (``output_format='webp'``) so ``result.images[0].data`` is ready to
-    write, and -- when OCR is enabled -- ``force_ocr`` produces the recognized
-    text in ``result.content``. ``run_ocr_on_images=False`` avoids the image
+    write, and ``force_ocr`` produces the recognized text in
+    ``result.content``. ``run_ocr_on_images=False`` avoids the image
     being OCR'd twice (force_ocr already covers it). No chunking: an image
     yields one OCR document, not chunks.
     """
+    ocr = OcrLanguageCodes.from_env()
     config: ExtractionConfig = {
         "images": ImageExtractionConfig(
             extract_images=True,
@@ -129,15 +124,13 @@ def get_extraction_config_for_image() -> ExtractionConfig:
             auto_adjust_dpi=True,
             max_image_dimension=1280,
         ),
-    }
-    if is_ocr_enabled():
-        ocr = OcrLanguageCodes.from_env()
-        config["force_ocr"] = True
-        config["ocr"] = OcrConfig(
+        "force_ocr": True,
+        "ocr": OcrConfig(
             backend=ocr.backend,
             language=ocr.languages,
             element_config=OcrElementConfig(include_elements=True),
-        )
+        ),
+    }
     return config
 
 

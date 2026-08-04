@@ -2,8 +2,6 @@ services:
   file-converter:
     environment:
       ## Some space for local test envs
-      # - OCR_ENABLED=${OCR_ENABLED:-true}
-      # - OCR_BACKEND=tesseract
       # - SAVE_DOCUMENT_IMAGE_REFS=true
       # - OCR_LANGUAGES=en,de
     networks:

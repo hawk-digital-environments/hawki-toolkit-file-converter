@@ -5,7 +5,6 @@ Run with:
 
 Outputs (under ./profiles/):
     profile_pdf_ocr_on.html        pyinstrument call-tree (open in a browser)
-    profile_pdf_ocr_off.html       same, with OCR disabled
     profile_pdf_ocr_on.pyisession  re-openable pyinstrument session
 
 Also prints a per-phase wall-clock breakdown and the pyinstrument text tree to the
@@ -109,33 +108,21 @@ def _print_phase_report(total_wall: float) -> None:
 # --- the profiling test ------------------------------------------------------
 
 
-@pytest.fixture
-def ocr_on():
-    """Control knob to enable/disable ocr."""
-    return True
-
-
 @pytest.mark.profile
 @pytest.mark.asyncio
 async def test_profile_pdf_pipeline(
     profile_pdf_file: Path,
     monkeypatch: pytest.MonkeyPatch,
-    ocr_on: bool,
 ) -> None:
     """Profile ``process_file_core`` for a PDF and report hotspots."""
     pytest.importorskip("pyinstrument")
     from pyinstrument import Profiler
     from pyinstrument.renderers import SessionRenderer
 
-    monkeypatch.setenv("OCR_ENABLED", "true" if ocr_on else "false")
-
     pdf_bytes = profile_pdf_file.read_bytes()
-    print(
-        f"\nProfiling {profile_pdf_file.name} "
-        f"({len(pdf_bytes)} bytes), OCR_ENABLED={'true' if ocr_on else 'false'}"
-    )
+    print(f"\nProfiling {profile_pdf_file.name} ({len(pdf_bytes)} bytes)")
 
-    # Warm up so one-shot lazy loading (xberg/PaddleOCR init) doesn't skew
+    # Warm up so one-shot lazy loading (xberg/tesseract init) doesn't skew
     # the timed run. The result is discarded.
     await processor.process_file_core(pdf_bytes, "warmup.pdf")
 
@@ -159,11 +146,10 @@ async def test_profile_pdf_pipeline(
     print(profiler.output_text(show_all=False, color=False))
 
     # Artifacts for offline browsing.
-    label = "ocr_on" if ocr_on else "ocr_off"
     PROFILE_OUT_DIR.mkdir(parents=True, exist_ok=True)
-    html_path = PROFILE_OUT_DIR / f"profile_pdf_{label}.html"
+    html_path = PROFILE_OUT_DIR / "profile_pdf_ocr_on.html"
     profiler.write_html(str(html_path))
-    session_path = PROFILE_OUT_DIR / f"profile_pdf_{label}.pyisession"
+    session_path = PROFILE_OUT_DIR / "profile_pdf_ocr_on.pyisession"
     session_path.write_text(SessionRenderer().render(profiler.last_session), encoding="utf-8")
     print(f"\nWrote {html_path}")
     print(f"Wrote {session_path}  (reopen with: pyinstrument {session_path})")

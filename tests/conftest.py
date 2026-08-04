@@ -166,12 +166,6 @@ def api_key(monkeypatch):
 
 
 @pytest.fixture(autouse=True)
-def ocr_enabled(monkeypatch):
-    """Enable OCR for tests that assert OCR output (production default is off)."""
-    monkeypatch.setenv("OCR_ENABLED", "true")
-
-
-@pytest.fixture(autouse=True)
 def save_document_refs(monkeypatch):
     """Add saving images as a default in tests. Default is disbaled in production for now."""
     monkeypatch.setenv("SAVE_DOCUMENT_IMAGE_REFS", "true")

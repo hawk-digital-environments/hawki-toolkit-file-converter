@@ -41,7 +41,7 @@ lint: ## Run ruff linter
 .PHONY: profile
 profile: ## Profile the PDF pipeline with pyinstrument (writes ./profiles/*.html)
 	F_API_KEY=test-api-key uv run pytest tests/test_profile_pdf.py -m profile -s
-	@echo "Open ./profiles/profile_pdf_ocr_on.html (or _ocr_off.html) in a browser."
+	@echo "Open ./profiles/profile_pdf_ocr_on.html in a browser."
 
 .PHONY: down
 down: ## Stop and remove containers

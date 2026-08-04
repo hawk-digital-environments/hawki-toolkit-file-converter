@@ -6,7 +6,7 @@ This project provides a lightweight, containerized API for extracting and cleani
 
 - Upload documents via an HTTP endpoint and get back cleaned text.
 - Dockerized setup based on Python 3.14 and FastAPI [with feature rich base image](https://github.com/Neunerlei/docker-images/blob/main/docs/python-nginx.md).
-- OCR runs via the `OCR_BACKEND` xberg backend (default `paddle-ocr`; `tesseract` is also supported). The OCR language used when language detection fails defaults to the backend's default and can be changed via `OCR_LANGUAGES`. Any ISO 639 code (`en`, `deu`, `fra`), language name (`German`), or backend-native token (`english`, `east_slavic`, `chi_sim`) is accepted and normalized to the code the backend expects; a comma-separated list is allowed, but each added language increases runtime.
+- OCR runs via the tesseract xberg backend. The OCR language used when language detection fails defaults to the backend's default and can be changed via `OCR_LANGUAGES`. Any ISO 639 code (`en`, `deu`, `fra`), language name (`German`), or tesseract-native token (`chi_sim`, `chi_tra`) is accepted and normalized to the code tesseract expects; a comma-separated list is allowed, but each added language increases runtime.
 - Chunking is delegated to xberg's built-in text chunker (single extract pass alongside OCR). The maximum characters per chunk is `MAX_CHUNK_LENGTH` (default 3000) and `CHUNK_OVERLAP` (default 0) controls how many characters adjacent chunks share.
 - Then default number of keywords for each detected language is 10. It can be adjusted via `MAX_KEYWORDS_FOR_LANGUAGE`
 - Async conversion pipeline (`POST /convert`, `GET /download/{job_id}`, `GET /jobs`, `GET /jobs/{job_id}`) with content-hash dedup, callback URLs, and Temporal Schedule-driven TTL cleanup.
@@ -136,8 +136,7 @@ Existing debug setups:
 To run tests use `make ci-test`
 
 ### Notes
-1) A pdf might contain the text in image layers from the origin document. 
+1) A pdf might contain the text only in image layers from the origin document. 
 In these cases ocr is the only way to extract text. 
-2) Only tesseract supports text extraction in a single pass. For e.g. paddle-ocr a extraction consolidation and matching needs to be performed
-3) In xberg keyword extraction only a subset of languages is supported. If the detected language does not exist or doesn't match a supported one,
+2) In xberg keyword extraction supports only a subset of languages. If the detected language does not exist or doesn't match a supported one,
 keyword extraction runs without a target language.

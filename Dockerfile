@@ -87,16 +87,6 @@ RUN uv export --no-dev --no-hashes --no-emit-project -o requirements.txt > requi
 FROM temporalio/auto-setup:1.29.7 AS temporal-auto-setup
 
 
-# Build-time only: pre-fetch xberg's PaddleOCR + layout ONNX models from
-# HuggingFace into a standard HF cache layout.
-FROM base AS model-cache
-RUN --mount=type=cache,id=pip-cache,target=/root/.cache/pip,sharing=locked \
-    pip install huggingface_hub~=1.24.0
-ENV HF_HOME=/hf-home
-COPY docker/scripts/fetch_models.py /fetch_models.py
-RUN python /fetch_models.py
-
-
 FROM base AS deployment 
 
 ARG TEMPORAL_SERVER_VERSION=1.29.7
@@ -183,24 +173,13 @@ ENV RUST_LOG=info
 # E,g, via image budget or smart rag switch for pdf containing many images.
 ENV SAVE_DOCUMENT_IMAGE_REFS=false
 
-# Pre-fetched model cache (built in the model-cache stage). HF_HOME and
-# HUGGINGFACE_HUB_CACHE point xberg's hf-hub downloader here so cache hits
-# need no network.
-ENV HF_HOME=/var/cache/huggingface
-ENV HUGGINGFACE_HUB_CACHE=/var/cache/huggingface/hub
-
 COPY docker/custom/supervisor/conf.d/*.conf /container/templates/supervisor/conf.d/
 COPY docker/custom/nginx/*.conf /container/custom/nginx/
 COPY docker/custom/entrypoint/*.sh /container/custom/entrypoint/
 COPY docker/scripts/*.sh /container/bin/
 
 RUN mkdir -p /task-storage /etc/temporal/config /container/custom/supervisor/conf.d \
-        /container/custom/entrypoint /var/run/postgresql /var/cache/huggingface && \
-    chown www-data:www-data /task-storage /var/cache/huggingface && \
+        /container/custom/entrypoint /var/run/postgresql && \
+    chown www-data:www-data /task-storage && \
     chown postgres:postgres /var/run/postgresql && \
     chmod +x /container/bin/*.sh
-
-# Model cache is COPY'd LAST and with --chown so ownership is baked in without
-# a separate multi-GB chown diff layer. This is the single biggest size win:
-# the previous trailing `chown -R` duplicated the full 2 GB model set.
-COPY --chown=www-data:www-data --from=model-cache /hf-home/hub /var/cache/huggingface/hub
