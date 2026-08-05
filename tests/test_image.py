@@ -4,20 +4,7 @@ import pytest
 @pytest.fixture
 def expected_ocr_content():
     """The expected ocr content."""
-    return (
-        "HOLIDAY THEME OCR TEST\n\n"
-        + "WÖRTER\n\n"
-        + "DEUTSCHE\n\n"
-        + "ENGLISH WORDS\n\n"
-        + "BEACH\n\n"
-        + "STRAND\n\n"
-        + "RELAX\n\n"
-        + "URLAUB\n\n"
-        + "SONNE\n\n"
-        + "SUMMER\n\n"
-        + "TRAVEL\n\n"
-        + "MEER"
-    )
+    return "HOLIDAY THEME OCR TEST\n\nENGLISH WORDS DEUTSCHE WÖRTER\nBEACH STRAND\nRELAX URLAUB\nSUMMER SONNE\n\nTRAVEL MEER"
 
 
 def test_extract_image_file_file(
