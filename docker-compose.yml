@@ -8,7 +8,7 @@ services:
       context: .
       dockerfile: Dockerfile
     ports:
-      - "8001:80"
+      - "8004:80"
     environment:
       - F_API_KEY=${F_API_KEY:-}
       - POSTGRES_ENABLED=${POSTGRES_ENABLED:-true}

@@ -1,13 +1,13 @@
 # PDF Text Extraction API with PyMuPDF and FastAPI
 
-This project provides a lightweight, containerized API for extracting and cleaning text from PDF files using [`kreuzberg`](https://github.com/kreuzberg-dev/kreuzberg) and serving it with FastAPI.
+This project provides a lightweight, containerized API for extracting and cleaning text from PDF files using [`xberg`](https://github.com/xberg-io/xberg) and serving it with FastAPI.
 
 ##  Current Features
 
 - Upload documents via an HTTP endpoint and get back cleaned text.
 - Dockerized setup based on Python 3.14 and FastAPI [with feature rich base image](https://github.com/Neunerlei/docker-images/blob/main/docs/python-nginx.md).
-- The default language for OCR is "de". This can be changed via the env `OCR_LANGUAGES` and only affects documents where language detection fails. Allowed is a comma seperated list of languages, but each added language increases runtime.
-- The number of characters per chunked document is adjustable. The default `MAX_CHUNK_LENGTH` is 3000 and is a soft limit. E.g. a single number with more than 3000 digits will not be split to multiple documents.
+- OCR runs via the tesseract xberg backend. The OCR language used when language detection fails defaults to the backend's default and can be changed via `OCR_LANGUAGES`. Any ISO 639 code (`en`, `deu`, `fra`), language name (`German`), or tesseract-native token (`chi_sim`, `chi_tra`) is accepted and normalized to the code tesseract expects; a comma-separated list is allowed, but each added language increases runtime.
+- Chunking is delegated to xberg's built-in text chunker (single extract pass alongside OCR). The maximum characters per chunk is `MAX_CHUNK_LENGTH` (default 3000) and `CHUNK_OVERLAP` (default 0) controls how many characters adjacent chunks share.
 - Then default number of keywords for each detected language is 10. It can be adjusted via `MAX_KEYWORDS_FOR_LANGUAGE`
 - Async conversion pipeline (`POST /convert`, `GET /download/{job_id}`, `GET /jobs`, `GET /jobs/{job_id}`) with content-hash dedup, callback URLs, and Temporal Schedule-driven TTL cleanup.
 ---
@@ -135,31 +135,8 @@ Existing debug setups:
 ### Tests
 To run tests use `make ci-test`
 
-### Extracting supported file formats
-There is (currently) no interface to get supported file formats in python, so they are extracted statically.
-Example extracting supported formats in Rust:
-```
-curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
-cargo new kreuzberg_example
-cd kreuzberg_example
-cargo add kreuzberg
-```
-edit src/main.rs to contain:
-```
-use kreuzberg::core::mime::list_supported_formats;
-
-fn main() {
-    let formats = list_supported_formats();
-    assert!(!formats.is_empty());
-    assert!(formats.iter().any(|f| f.extension == "pdf"));
-
-    println!("Supported formats:");
-    for f in formats {
-        println!("{} ({})", f.extension, f.mime_type);
-    }
-    for f in list_supported_formats() {
-        println!("{}", f.extension);
-    }
-}
-```
-Run `cargo run` and extract file extensions.
+### Notes
+1) A pdf might contain the text only in image layers from the origin document. 
+In these cases ocr is the only way to extract text. 
+2) In xberg keyword extraction supports only a subset of languages. If the detected language does not exist or doesn't match a supported one,
+keyword extraction runs without a target language.

@@ -144,6 +144,18 @@ wheels = [
 ]
 
 [[package]]
+name = "ftfy"
+version = "6.3.1"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "wcwidth" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/a5/d3/8650919bc3c7c6e90ee3fa7fd618bf373cbbe55dff043bd67353dbb20cd8/ftfy-6.3.1.tar.gz", hash = "sha256:9b3c3d90f84fb267fe64d375a07b7f8912d817cf86009ae134aa03e1819506ec", size = 308927, upload-time = "2024-10-26T00:50:35.149Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/ab/6e/81d47999aebc1b155f81eca4477a616a70f238a2549848c38983f3c22a82/ftfy-6.3.1-py3-none-any.whl", hash = "sha256:7c70eb532015cd2f9adb53f101fb6c7945988d023a085d127d1573dc49dd0083", size = 44821, upload-time = "2024-10-26T00:50:33.425Z" },
+]
+
+[[package]]
 name = "h11"
 version = "0.16.0"
 source = { registry = "https://pypi.org/simple" }
@@ -160,18 +172,21 @@ dependencies = [
     { name = "asyncpg" },
     { name = "charset-normalizer" },
     { name = "fastapi" },
+    { name = "ftfy" },
     { name = "httpx" },
-    { name = "kreuzberg" },
     { name = "pillow" },
     { name = "pydantic" },
+    { name = "python-iso639" },
     { name = "python-multipart" },
     { name = "pyyaml" },
     { name = "temporalio" },
     { name = "uvicorn" },
+    { name = "xberg" },
 ]
 
 [package.dev-dependencies]
 dev = [
+    { name = "pyinstrument" },
     { name = "pytest" },
     { name = "pytest-asyncio" },
     { name = "requests" },
@@ -183,18 +198,21 @@ requires-dist = [
     { name = "asyncpg", specifier = "~=0.31.0" },
     { name = "charset-normalizer", specifier = "~=3.4.7" },
     { name = "fastapi", specifier = "~=0.136.0" },
+    { name = "ftfy", specifier = "~=6.3.1" },
     { name = "httpx", specifier = "~=0.28.1" },
-    { name = "kreuzberg", specifier = "==4.9.2" },
     { name = "pillow", specifier = "~=12.2.0" },
     { name = "pydantic", specifier = "~=2.13.1" },
+    { name = "python-iso639", specifier = "~=2026.7.23" },
     { name = "python-multipart", specifier = "~=0.0.26" },
     { name = "pyyaml", specifier = "~=6.0.3" },
     { name = "temporalio", specifier = "~=1.9" },
     { name = "uvicorn", specifier = "~=0.44.0" },
+    { name = "xberg", specifier = "==1.0.12" },
 ]
 
 [package.metadata.requires-dev]
 dev = [
+    { name = "pyinstrument", specifier = "~=4.7" },
     { name = "pytest", specifier = "~=9.0.3" },
     { name = "pytest-asyncio", specifier = "~=1.3.0" },
     { name = "requests", specifier = "~=2.33.1" },
@@ -245,18 +263,6 @@ source = { registry = "https://pypi.org/simple" }
 sdist = { url = "https://files.pythonhosted.org/packages/72/34/14ca021ce8e5dfedc35312d08ba8bf51fdd999c576889fc2c24cb97f4f10/iniconfig-2.3.0.tar.gz", hash = "sha256:c76315c77db068650d49c5b56314774a7804df16fee4402c1f19d6d15d8c4730", size = 20503, upload-time = "2025-10-18T21:55:43.219Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/cb/b1/3846dd7f199d53cb17f49cba7e651e9ce294d8497c8c150530ed11865bb8/iniconfig-2.3.0-py3-none-any.whl", hash = "sha256:f631c04d2c48c52b84d0d0549c99ff3859c98df65b3101406327ecc7d53fbf12", size = 7484, upload-time = "2025-10-18T21:55:41.639Z" },
-]
-
-[[package]]
-name = "kreuzberg"
-version = "4.9.2"
-source = { registry = "https://pypi.org/simple" }
-sdist = { url = "https://files.pythonhosted.org/packages/67/d4/6559b625ab7606ffebf9b025745bc202296df1a788573b406785b8214366/kreuzberg-4.9.2.tar.gz", hash = "sha256:59a99e14e2156530ef0b1344be53baef50bde87f0908099ac6127a88e0c9bbc1", size = 2437544, upload-time = "2026-04-19T16:00:47.778Z" }
-wheels = [
-    { url = "https://files.pythonhosted.org/packages/b6/a1/acb48088d55b2387c2cfc4d24e92248fc0ef0657f3acb20b80b391c97a8d/kreuzberg-4.9.2-cp310-abi3-macosx_14_0_arm64.whl", hash = "sha256:5113ff1b9878fa92eb00c9cbb8b1d06600a770477e76f0045d20788a50c7ac7e", size = 28753304, upload-time = "2026-04-19T16:00:36.22Z" },
-    { url = "https://files.pythonhosted.org/packages/f3/40/4d58dcdf4cc14180183afc6ea2fa1b504b64f5154b8fea3d16930ff9cc65/kreuzberg-4.9.2-cp310-abi3-manylinux_2_28_aarch64.whl", hash = "sha256:953fd353023585873f33f93d1e03f4e4bb747aef0c86320c450db3f8f10acef3", size = 33258395, upload-time = "2026-04-19T16:00:39.432Z" },
-    { url = "https://files.pythonhosted.org/packages/ec/bc/c12c0777b83069f1228e5a4bb341e69aa03ce5c6fe9f7b65936931b8c94a/kreuzberg-4.9.2-cp310-abi3-manylinux_2_28_x86_64.whl", hash = "sha256:c4c6d300d03b0ea8936e1b3faedf22d559cb790bb364417121df22bb81f890a6", size = 35500862, upload-time = "2026-04-19T16:00:42.134Z" },
-    { url = "https://files.pythonhosted.org/packages/48/b3/fb0c529d4ff2935dd17bb52f334d95425e10c2b1786929112302f82da8a7/kreuzberg-4.9.2-cp310-abi3-win_amd64.whl", hash = "sha256:0a4b905df6534e88eeaa17dc27cfbc3dd49283085bedc658a447d4c9499c8f6b", size = 33066471, upload-time = "2026-04-19T16:00:45.051Z" },
 ]
 
 [[package]]
@@ -403,6 +409,12 @@ wheels = [
 ]
 
 [[package]]
+name = "pyinstrument"
+version = "4.7.3"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/df/ff/a899b0cb585f88a515703181b02488ba83c82a0df886d8eacb6921da6642/pyinstrument-4.7.3.tar.gz", hash = "sha256:3ad61041ff1880d4c99d3384cd267e38a0a6472b5a4dd765992db376bd4394c8", size = 129732, upload-time = "2024-09-06T11:13:49.195Z" }
+
+[[package]]
 name = "pytest"
 version = "9.0.3"
 source = { registry = "https://pypi.org/simple" }
@@ -428,6 +440,15 @@ dependencies = [
 sdist = { url = "https://files.pythonhosted.org/packages/90/2c/8af215c0f776415f3590cac4f9086ccefd6fd463befeae41cd4d3f193e5a/pytest_asyncio-1.3.0.tar.gz", hash = "sha256:d7f52f36d231b80ee124cd216ffb19369aa168fc10095013c6b014a34d3ee9e5", size = 50087, upload-time = "2025-11-10T16:07:47.256Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/e5/35/f8b19922b6a25bc0880171a2f1a003eaeb93657475193ab516fd87cac9da/pytest_asyncio-1.3.0-py3-none-any.whl", hash = "sha256:611e26147c7f77640e6d0a92a38ed17c3e9848063698d5c93d5aa7aa11cebff5", size = 15075, upload-time = "2025-11-10T16:07:45.537Z" },
+]
+
+[[package]]
+name = "python-iso639"
+version = "2026.7.23"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/2d/06/ca328611455fa6c959524154c10b7f0295bd75c44e7a43a4f3c12a45d6ff/python_iso639-2026.7.23.tar.gz", hash = "sha256:c176522e92cc76b3581cd354e5544330980a36b017d7c291717eface84eaff57", size = 174039, upload-time = "2026-07-23T13:19:00.862Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/6c/5b/de4df88c0f0a621925e486bf23f904fe1f62ad092d6e1df00e7f60174df4/python_iso639-2026.7.23-py3-none-any.whl", hash = "sha256:d678638207411a02c06f28aa965b8081df0766f59ed311071960161fe3a77af2", size = 167905, upload-time = "2026-07-23T13:18:59.63Z" },
 ]
 
 [[package]]
@@ -587,4 +608,26 @@ dependencies = [
 sdist = { url = "https://files.pythonhosted.org/packages/5e/da/6eee1ff8b6cbeed47eeb5229749168e81eb4b7b999a1a15a7176e51410c9/uvicorn-0.44.0.tar.gz", hash = "sha256:6c942071b68f07e178264b9152f1f16dfac5da85880c4ce06366a96d70d4f31e", size = 86947, upload-time = "2026-04-06T09:23:22.826Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/b7/23/a5bbd9600dd607411fa644c06ff4951bec3a4d82c4b852374024359c19c0/uvicorn-0.44.0-py3-none-any.whl", hash = "sha256:ce937c99a2cc70279556967274414c087888e8cec9f9c94644dfca11bd3ced89", size = 69425, upload-time = "2026-04-06T09:23:21.524Z" },
+]
+
+[[package]]
+name = "wcwidth"
+version = "0.8.2"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/34/74/c6428f875774288bec1396f5bfcbc2d925700a4dad61727fd5f2b12f249d/wcwidth-0.8.2.tar.gz", hash = "sha256:91fbef97204b96a3d4d421609b80340b760cf33e26da123ff243d76b1fda8dda", size = 1466253, upload-time = "2026-06-29T18:11:11.601Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/96/42/3e5985a0a7e57de470b320c6d6a1a67c844f6737a587f3d44dd13d1819e7/wcwidth-0.8.2-py3-none-any.whl", hash = "sha256:d63947694a0539a1d51e01eda7caf800c291020e6cdd7e28ad7b14dd33ad4f85", size = 323166, upload-time = "2026-06-29T18:11:09.888Z" },
+]
+
+[[package]]
+name = "xberg"
+version = "1.0.12"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/6e/3a/6a8a2b5f1d5a72c002cd7775ebd0fd31e66dadcd36821a9ced39e1d6fce4/xberg-1.0.12.tar.gz", hash = "sha256:bf5039e9d633d5ee20918308feb5f45249d85fd2bf7fbc14f981780754de3d25", size = 326121, upload-time = "2026-08-03T21:02:09.68Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/c7/e4/d56a4b026d07911fcf0ece5d3ebccf7698ad1e0871a86b50c7c46ece4b9b/xberg-1.0.12-cp310-abi3-macosx_11_0_arm64.whl", hash = "sha256:494e7b28c798acba3ed2df14db85a916aae0c5282e282f39262aa0336e1a4bbf", size = 41717512, upload-time = "2026-08-03T21:01:52.912Z" },
+    { url = "https://files.pythonhosted.org/packages/da/9d/a0cf9c4259f49367a88d299fb62f08a0cb5ab521233bbb10151f4217d095/xberg-1.0.12-cp310-abi3-macosx_11_0_x86_64.whl", hash = "sha256:3c630e4f4e902ddbb24f1f646be0ff8e6229ca5ee9d1471c77ab97ef9ab7eb4c", size = 33944664, upload-time = "2026-08-03T21:01:56.032Z" },
+    { url = "https://files.pythonhosted.org/packages/50/e8/265ce2b3273e10fea9e53f51df59355162ebddc4a9dad75fc4c1cc945256/xberg-1.0.12-cp310-abi3-manylinux_2_28_aarch64.whl", hash = "sha256:aea35100412de6455d634d8fe241402eeae7cc5e7e8cc8a1b390abaa91cb6cbd", size = 54730650, upload-time = "2026-08-03T21:01:59.342Z" },
+    { url = "https://files.pythonhosted.org/packages/65/a8/9a5fe8a2e07c277a12e3b47ddc373a488298b044b18dbf8436e9cfdac542/xberg-1.0.12-cp310-abi3-manylinux_2_28_x86_64.whl", hash = "sha256:df00e47e3127da37b1186050cde8294e412ce401c5c1aef31321319f6f135d0f", size = 61164345, upload-time = "2026-08-03T21:02:03.301Z" },
+    { url = "https://files.pythonhosted.org/packages/07/08/dbf36fb141b0e8b71005df8881f7c8ca1820b0212251892a8a3d694b544b/xberg-1.0.12-cp310-abi3-win_amd64.whl", hash = "sha256:4acb3d7b1e237b8da6252e06e1807b84841f20c1fd87fd9df8417610ba350dcb", size = 45296373, upload-time = "2026-08-03T21:02:07.107Z" },
 ]

@@ -1,3 +1,5 @@
+import re
+
 import pytest
 
 
@@ -31,9 +33,6 @@ def test_extract_text_file(
         "output/meta.json",
         {
             "chunks": 1,
-            "languages": [
-                "en",
-            ],
             "mimeType": "text/plain",
             "name": "baz.txt",
             "size": 11,
@@ -86,9 +85,6 @@ def test_extract_text_file_special_filenames(
         "output/meta.json",
         {
             "chunks": 1,
-            "languages": [
-                "en",
-            ],
             "mimeType": "text/plain",
             "name": expected_filename,
             "size": len(content),
@@ -110,3 +106,27 @@ def test_extract_binary_unknown_extension_rejected(
     )
     assert response.status_code == 400
     assert "Unsupported file type" in response.json()["detail"]
+
+
+def test_extract_strips_stray_control_chars_from_output(
+    client,
+    auth_headers,
+    assert_zip_response,
+    extract_zip_entries,
+) -> None:
+    """Stray control characters (e.g. STX/0x02 leaked by PDF text-layer extraction)
+    must not leak into the output markdown, where they make MIME sniffers classify
+    the whole file as application/octet-stream instead of text/plain."""
+    response = client.post(
+        "/extract",
+        files={"file": ("ctrl.txt", b"hello\x02world", "text/plain")},
+        headers=auth_headers,
+    )
+    assert_zip_response(response, "ctrl.zip")
+    entries = extract_zip_entries(response)
+
+    text = entries["output/chunks/00001.md"].decode("utf-8")
+
+    assert not re.search(r"[\x00-\x08\x0b\x0c\x0e-\x1f\x7f\x80-\x9f]", text)
+    assert "hello" in text
+    assert "world" in text
