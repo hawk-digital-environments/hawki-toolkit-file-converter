@@ -9,7 +9,7 @@ dependencies = [
     "charset-normalizer~=3.4.7",
     "fastapi~=0.136.0",
     "httpx~=0.28.1",
-    "xberg==1.0.11",
+    "xberg==1.0.12",
     "pillow~=12.2.0",
     "temporalio~=1.9",
     "pydantic~=2.13.1",
@@ -17,7 +17,7 @@ dependencies = [
     "pyyaml~=6.0.3",
     "uvicorn~=0.44.0",
     "ftfy~=6.3.1",
-    "python-iso639>=2026.7.23",
+    "python-iso639~=2026.7.23",
 ]
 
 [project.scripts]
