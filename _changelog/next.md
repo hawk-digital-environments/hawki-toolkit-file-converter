@@ -10,7 +10,7 @@
 
 ### Bugfix
 
-[//]: # (- List of bugs that have been fixed in this version.)
+- Add a guard for large images in pdfs, which scales images before xberg processes them. That prevents xberg to decode large images into memory to then just ignore them. 
 
 ### Internals
 
