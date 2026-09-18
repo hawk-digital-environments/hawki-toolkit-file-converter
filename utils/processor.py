@@ -39,6 +39,7 @@ from utils.helper import (
     make_content_disposition,
 )
 from utils.language_helper import KeywordLanguageCodes, OcrLanguageCodes
+from utils.pdf_image_guard import downscale_image_bytes, shrink_oversized_pdf_images
 
 
 def is_save_document_image_refs_enabled() -> bool:
@@ -428,6 +429,11 @@ async def process_file_core(
         assets_dir = zip_dir / "assets"
         assets_dir.mkdir(parents=True, exist_ok=True)
 
+        if Path(filename).suffix.lower() == ".pdf":
+            # Bound memory before xberg decodes: rewrite oversized embedded
+            # scans (see utils/pdf_image_guard.py). No-op for normal PDFs.
+            file_bytes = shrink_oversized_pdf_images(file_bytes)
+
         file_path = tmpdir / filename
         file_path.write_bytes(file_bytes)
 
@@ -474,6 +480,9 @@ async def process_image_content(tmp_imagefile_path: Path, assets_dir: Path):
         assets_dir: The output folder for assets (webp image + OCR markdown).
     """
     data = tmp_imagefile_path.read_bytes()
+    # Bound memory before xberg decodes a huge uploaded raster; no-op for
+    # reasonably sized images (see utils/pdf_image_guard.py).
+    data = downscale_image_bytes(data)
     mime = Image.open(io.BytesIO(data)).get_format_mimetype()
 
     config = get_extraction_config_for_image()
